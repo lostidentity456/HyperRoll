@@ -12,7 +12,7 @@ public class TileNode
 
     // The state of this tile, which changes during the game
     public PlayerController owner; // Who owns the building on this tile? Null if nobody.
-    public int buildingLevel;      // e.g., 0 for no building, 1 for small, etc.
+    public BuildingData currentBuilding;
 
     public TileNode(Grid<TileNode> grid, int x, int y)
     {
@@ -21,7 +21,7 @@ public class TileNode
         this.y = y;
         this.initialTileType = TileType.Buildable; // Default to Buildable
         this.owner = null;
-        this.buildingLevel = 0;
+        currentBuilding = null;
     }
 
     public override string ToString()

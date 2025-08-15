@@ -11,6 +11,7 @@ public class BoardManager : MonoBehaviour
 
     [Header("Prefabs & Data")]
     [SerializeField] private GameObject tilePrefab; // A simple cube for the visual
+    private Dictionary<Vector2Int, GameObject> tileVisuals = new Dictionary<Vector2Int, GameObject>();
 
     // We only need ScriptableObjects for our *special* corner tiles
     [SerializeField] private TileData goTileData;
@@ -54,8 +55,25 @@ public class BoardManager : MonoBehaviour
         foreach (Vector2Int pos in pathCoordinates)
         {
             Vector3 worldPos = grid.GetWorldPosition(pos.x, pos.y);
-            // You can add more complex logic here later to change color based on tile type
-            Instantiate(tilePrefab, worldPos, Quaternion.identity, this.transform);
+
+            GameObject tileObject = Instantiate(tilePrefab, worldPos, Quaternion.identity, this.transform);
+
+            tileVisuals[pos] = tileObject;
+        }
+    }
+
+    public void UpdateTileVisual(TileNode node, Material buildingMat)
+    {
+        if (node != null && buildingMat != null)
+        {
+            Vector2Int pos = new Vector2Int(node.x, node.y);
+
+            if (tileVisuals.ContainsKey(pos))
+            {
+                GameObject tileObject = tileVisuals[pos];
+                Renderer tileRenderer = tileObject.GetComponent<Renderer>();
+                tileRenderer.material = buildingMat;
+            }
         }
     }
 

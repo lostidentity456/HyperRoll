@@ -1,7 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 using static TileData;
 
 public class GameManager : MonoBehaviour
@@ -14,12 +13,17 @@ public class GameManager : MonoBehaviour
     [SerializeField] private UIManager uiManager;
     [SerializeField] private GameObject playerPrefab;
 
-    // Game Data Assets
-    [Header("Game Data")]
+    [Header("Available Buildings")]
     [SerializeField] private BuildingData houseData;
     [SerializeField] private BuildingData shopData;
-    [SerializeField] private Material player1Material;
-    [SerializeField] private Material player2Material;
+
+    [Header("Player Visuals")]
+    [SerializeField] private Material player1ColorMaterial; // For the player piece
+    [SerializeField] private Material player2ColorMaterial; // For the bot piece
+
+    [Header("Building Materials")]
+    [SerializeField] private Material player1BuildingMaterial; // For player's buildings
+    [SerializeField] private Material player2BuildingMaterial; // For bot's buildings
 
     // --- Game Settings ---
     [Header("Game Settings")]
@@ -34,7 +38,6 @@ public class GameManager : MonoBehaviour
     private int[] playerDiceSums = new int[2];
     private DuelChoice[] duelChoices = new DuelChoice[2];
     private int duelWinnerIndex;
-    private int duelLoserIndex;
 
     // Variables to store who is making a choice and for what tile.
     private PlayerController playerMakingChoice;
@@ -81,7 +84,7 @@ public class GameManager : MonoBehaviour
 
             case GameState.BotTurn:
                 // Start the Bot's turn sequence.
-                StartCoroutine(BotTurnSequence());
+                //StartCoroutine(BotTurnSequence());
                 break;
 
             case GameState.TurnEnd:
@@ -112,6 +115,7 @@ public class GameManager : MonoBehaviour
 
     private IEnumerator DuelSequence()
     {
+        SoundManager.Instance.PlaySound(SoundManager.Instance.diceRollSfx);
         // --- Roll Dice ---
         uiManager.LogDuelMessage($"[Turn {turnNumber}] Dueling...");
         for (int i = 0; i < players.Count; i++)
@@ -137,7 +141,7 @@ public class GameManager : MonoBehaviour
         }
 
         duelWinnerIndex = duelResult.winner;
-        duelLoserIndex = duelResult.loser;
+        int duelLoserIndex = (duelWinnerIndex == 0) ? 1 : 0;
 
         uiManager.LogDuelMessage($"Player {duelWinnerIndex + 1} wins the duel!");
         yield return new WaitForSeconds(turnDelay);
@@ -146,68 +150,56 @@ public class GameManager : MonoBehaviour
         // Player 1 (index 0) is the human. Player 2 (index 1) is the bot.
         if (duelWinnerIndex == 0) // Human player won.
         {
-            StartCoroutine(PlayerTurnSequence(duelWinnerIndex));
+            StartCoroutine(PlayerTurnSequence(duelWinnerIndex, duelLoserIndex));
         }
         else // Bot won.
         {
-            UpdateGameState(GameState.BotTurn);
+            StartCoroutine(BotTurnSequence(duelWinnerIndex, duelLoserIndex));
         }
     }
 
-    private IEnumerator PlayerTurnSequence(int playerIndex)
+    private IEnumerator PlayerTurnSequence(int playerIndex, int loserIndex)
     {
         UpdateGameState(GameState.PlayerMoving);
         uiManager.LogDuelMessage($"Player {playerIndex + 1}'s turn...");
-        yield return new WaitForSeconds(turnDelay);
 
-        // This helper method does the actual moving and calls ProcessLandedTile.
+        // Starts the MoveAndProcessSequence coroutine.
         ExecuteSinglePlayerTurn(playerIndex);
 
-        if (currentState == GameState.WaitingForPlayerChoice)
-        {
-            yield return new WaitUntil(() => currentState == GameState.PlayerChoiceComplete);
-        }
+        // Wait for the processing to be fully complete.
+        yield return new WaitUntil(() => currentState == GameState.ProcessingComplete
+            || currentState == GameState.TurnEnd);
 
-        yield return new WaitForSeconds(turnDelay / 2); // A small extra pause after building.
-
-        // Check whose turn is next.
-        if (playerIndex == duelWinnerIndex) // The winner just finished their turn.
+        // Check whose turn is next (logic remains the same).
+        if (playerIndex == duelWinnerIndex)
         {
-            // Now it's the loser's turn.
-            if (duelLoserIndex == 0) // Is the loser human?
-            {
-                StartCoroutine(PlayerTurnSequence(duelLoserIndex));
-            }
-            else // The loser is the bot.
-            {
-                UpdateGameState(GameState.BotTurn);
-            }
+            if (loserIndex == 0) StartCoroutine(PlayerTurnSequence(loserIndex, playerIndex));
+            else StartCoroutine(BotTurnSequence(loserIndex, playerIndex));
         }
-        else // The loser just finished their turn.
+        else
         {
-            // The whole round is over.
             UpdateGameState(GameState.TurnEnd);
         }
     }
 
-    private IEnumerator BotTurnSequence()
+    private IEnumerator BotTurnSequence(int playerIndex, int loserIndex)
     {
-        uiManager.LogDuelMessage("Bot's turn...");
-        yield return new WaitForSeconds(turnDelay);
+        UpdateGameState(GameState.PlayerMoving); // Set state for the bot's turn
+        uiManager.LogDuelMessage($"Bot's (Player {playerIndex + 1}) turn...");
 
-        // --- Bot Movement ---
-        ExecuteSinglePlayerTurn(1); // The bot is always player index 1.
-        yield return new WaitForSeconds(turnDelay);
+        // This starts the MoveAndProcessSequence for the bot.
+        ExecuteSinglePlayerTurn(playerIndex);
 
-        // After moving, check if the human's turn is next.
-        if (duelWinnerIndex == 1) // Bot was the winner.
+        // Wait for the bot's processing to be fully complete.
+        yield return new WaitUntil(() => currentState == GameState.ProcessingComplete || currentState == GameState.TurnEnd);
+
+        // Check whose turn is next
+        if (playerIndex == duelWinnerIndex)
         {
-            // Now it's the human loser's turn.
-            StartCoroutine(PlayerTurnSequence(duelLoserIndex));
+            StartCoroutine(PlayerTurnSequence(loserIndex, playerIndex));
         }
-        else // Human was the winner, bot was the loser.
+        else
         {
-            // The whole round is over.
             UpdateGameState(GameState.TurnEnd);
         }
     }
@@ -217,10 +209,16 @@ public class GameManager : MonoBehaviour
     private void ExecuteSinglePlayerTurn(int playerIndex)
     {
         PlayerController player = players[playerIndex];
-        int movement = playerDiceSums[playerIndex];
+        int spacesToMove = playerDiceSums[playerIndex];
 
-        player.currentPathIndex = (player.currentPathIndex + movement) % boardManager.GetPathLength();
-        MovePlayerToTile(player);
+        StartCoroutine(MoveAndProcessSequence(player, spacesToMove));
+    }
+
+    private IEnumerator MoveAndProcessSequence(PlayerController player, int spacesToMove)
+    {
+        yield return StartCoroutine(MovePlayerTileByTile(player, spacesToMove));
+
+        yield return new WaitForSeconds(0.25f);
 
         UpdateGameState(GameState.ProcessingTile);
         ProcessLandedTile(player);
@@ -243,7 +241,8 @@ public class GameManager : MonoBehaviour
                     landedNode.currentBuilding = houseData;
                     uiManager.UpdatePlayerMoney(activePlayer);
                     uiManager.LogDuelMessage($"Bot built a {houseData.buildingName}!");
-                    // TODO: Change tile color
+                    boardManager.UpdateTileVisual(landedNode, player2BuildingMaterial);
+                    UpdateGameState(GameState.ProcessingComplete);
                 }
             }
             else if (landedNode.owner != null && landedNode.owner != activePlayer)
@@ -260,32 +259,43 @@ public class GameManager : MonoBehaviour
         // --- Human Player's Logic ---
         else
         {
-            if (landedNode.initialTileType == TileType.Buildable && landedNode.owner == null)
+            if (landedNode.initialTileType == TileType.Buildable)
             {
-                // The tile is unowned. PAUSE the game and ASK the player.
-                playerMakingChoice = activePlayer;
-                tileForChoice = landedNode;
-
-                uiManager.ShowBuildPanel();
-                UpdateGameState(GameState.WaitingForPlayerChoice); // Game waits here.
+                if (landedNode.owner == null)
+                {
+                    // Unowned buildable tile: Ask the player to choose.
+                    playerMakingChoice = activePlayer;
+                    tileForChoice = landedNode;
+                    uiManager.ShowBuildPanel();
+                    UpdateGameState(GameState.WaitingForPlayerChoice); // Game waits here.
+                }
+                else
+                {
+                    // Tile is owned by someone (either bot or player).
+                    if (landedNode.owner != activePlayer)
+                    {
+                        // Pay rent to the bot. This is an instant action.
+                        int rent = landedNode.currentBuilding.baseRent;
+                        activePlayer.money -= rent;
+                        landedNode.owner.money += rent;
+                        uiManager.UpdatePlayerMoney(activePlayer);
+                        uiManager.UpdatePlayerMoney(landedNode.owner);
+                        uiManager.LogDuelMessage($"Player {activePlayer.playerId + 1} paid ${rent} rent to Bot!");
+                    }
+                    UpdateGameState(GameState.ProcessingComplete);
+                }
             }
-            else if (landedNode.owner != null && landedNode.owner != activePlayer)
+            else
             {
-                // Rent logic for when the player lands on the bot's property.
-                int rent = landedNode.currentBuilding.baseRent;
-                activePlayer.money -= rent;
-                landedNode.owner.money += rent;
-                uiManager.UpdatePlayerMoney(activePlayer);
-                uiManager.UpdatePlayerMoney(landedNode.owner);
-                uiManager.LogDuelMessage($"Player {activePlayer.playerId + 1} paid ${rent} rent to Bot!");
+                uiManager.LogDuelMessage($"Landed on {landedNode.initialTileType}. No action.");
+                UpdateGameState(GameState.ProcessingComplete);
             }
         }
     }
 
-    // This method is called by the UIManager when a build button is clicked.
     public void PlayerChoseToBuild(string buildingTypeName)
     {
-        if (currentState != GameState.WaitingForPlayerChoice) return; // Safety check
+        if (currentState != GameState.WaitingForPlayerChoice) return;
 
         BuildingData selectedBuilding = null;
         if (buildingTypeName == "House") selectedBuilding = houseData;
@@ -300,7 +310,8 @@ public class GameManager : MonoBehaviour
             uiManager.UpdatePlayerMoney(playerMakingChoice);
             uiManager.LogDuelMessage($"Player {playerMakingChoice.playerId + 1} built a {selectedBuilding.buildingName}!");
 
-            // TODO: Change the tile's color using selectedBuilding.buildingMaterial
+            SoundManager.Instance.PlaySound(SoundManager.Instance.buildPropertySfx);
+            boardManager.UpdateTileVisual(tileForChoice, player1BuildingMaterial);
         }
         else
         {
@@ -310,7 +321,7 @@ public class GameManager : MonoBehaviour
         playerMakingChoice = null;
         tileForChoice = null;
 
-        UpdateGameState(GameState.PlayerChoiceComplete);
+        UpdateGameState(GameState.ProcessingComplete);
     }
 
     // --- Spawning and Initialization ---
@@ -329,8 +340,8 @@ public class GameManager : MonoBehaviour
         Renderer playerRenderer = playerObject.GetComponentInChildren<Renderer>();
         if (playerRenderer != null)
         {
-            if (playerId == 0) { playerRenderer.material = player1Material; }
-            else { playerRenderer.material = player2Material; }
+            if (playerId == 0) { playerRenderer.material = player1ColorMaterial; }
+            else { playerRenderer.material = player2ColorMaterial; }
         }
 
         PlayerController playerController = playerObject.GetComponent<PlayerController>();
@@ -343,15 +354,52 @@ public class GameManager : MonoBehaviour
             playerController.currentPathIndex = halfwayPoint;
         }
 
-        MovePlayerToTile(playerController);
+        Vector3 startPos = boardManager.GetWorldPositionFromPathIndex
+            (playerController.currentPathIndex);
+        startPos.y += playerController.transform.localScale.y;
+        playerController.transform.position = startPos;
         uiManager.UpdatePlayerMoney(playerController);
     }
 
-    private void MovePlayerToTile(PlayerController player)
+    private IEnumerator MovePlayerTileByTile(PlayerController player, int spacesToMove)
     {
-        Vector3 newPos = boardManager.GetWorldPositionFromPathIndex(player.currentPathIndex);
-        newPos.y += player.transform.localScale.y;
-        player.transform.position = newPos;
+        yield return new WaitForSeconds(0.25f);
+
+        for (int i = 0; i < spacesToMove; i++)
+        {
+            player.currentPathIndex = (player.currentPathIndex + 1) % boardManager.GetPathLength();
+
+            // Get the world position of the VERY NEXT tile on the path.
+            Vector3 nextTilePos = boardManager.GetWorldPositionFromPathIndex(player.currentPathIndex);
+
+            SoundManager.Instance.PlaySound(SoundManager.Instance.pieceMoveSfx);
+            // Call our existing smooth movement function to move just ONE tile.
+            float stepDuration = 0.15f;
+            yield return StartCoroutine(MovePlayerSmoothly(player, nextTilePos, stepDuration));
+
+            // yield return new WaitForSeconds(0.05f);
+        }
+    }
+
+    private IEnumerator MovePlayerSmoothly(PlayerController player, Vector3 targetPosition, float duration)
+    {
+        // The piece is slightly elevated so it doesn't clip through the board.
+        targetPosition.y += player.transform.localScale.y;
+
+        Vector3 startPosition = player.transform.position;
+        float elapsedTime = 0;
+
+        // This loop will run until the piece has reached its destination.
+        while (elapsedTime < duration)
+        {
+            player.transform.position = Vector3.Lerp(startPosition, targetPosition, elapsedTime / duration);
+
+            // Add the time since the last frame to our counter.
+            elapsedTime += Time.deltaTime;
+            yield return null;
+        }
+
+        player.transform.position = targetPosition;
     }
 
     // --- Duel Logic Helpers ---
@@ -365,7 +413,7 @@ public class GameManager : MonoBehaviour
         return new DuelChoice(choiceType, isDouble);
     }
 
-    private (int winner, int loser, bool isSpecialWin) DetermineDuelWinner(DuelChoice p1, DuelChoice p2)
+    private (int winner, bool isSpecialWin) DetermineDuelWinner(DuelChoice p1, DuelChoice p2)
     {
         if (p1.type != p2.type)
         {
@@ -373,18 +421,18 @@ public class GameManager : MonoBehaviour
                 (p1.type == RPS_Choice.Paper && p2.type == RPS_Choice.Rock) ||
                 (p1.type == RPS_Choice.Scissors && p2.type == RPS_Choice.Paper))
             {
-                return (0, 1, p1.isSpecial);
+                return (0, p1.isSpecial); // Returns winner and if it was special
             }
             else
             {
-                return (1, 0, p2.isSpecial);
+                return (1, p2.isSpecial);
             }
         }
         else
         {
-            if (p1.isSpecial && !p2.isSpecial) { return (0, 1, true); }
-            else if (!p1.isSpecial && p2.isSpecial) { return (1, 0, true); }
-            else { return (-1, -1, false); }
+            if (p1.isSpecial && !p2.isSpecial) { return (0, true); }
+            else if (!p1.isSpecial && p2.isSpecial) { return (1, true); }
+            else { return (-1, false); } // Tie
         }
     }
 }

@@ -7,8 +7,6 @@ public class BuildingData : ScriptableObject
     public string buildingName;
     public int buildingCost;
     public int baseRent;
-
-    [Header("Visuals")]
-    public Material buildingMaterial;
-    // public GameObject buildingPrefab; 
+    
+    // We can add more properties later, like special abilities or upgrade costs!
 }

@@ -6,6 +6,10 @@ public class PlayerController : MonoBehaviour
     public int currentPathIndex; // Which tile on the path are we on? (e.g., tile 0, 1, 2...)
     public int money; // How much money the player has
 
+    public bool hasGuaranteedWin = false;
+    public bool hasFreeBuildOnRandomWin = false;
+    public bool hasTaxImmunity = false;
+
     public void Initialize(int id)
     {
         this.playerId = id;

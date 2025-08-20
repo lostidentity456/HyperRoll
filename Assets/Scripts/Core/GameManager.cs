@@ -1,19 +1,20 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Linq;
 using static TileData;
 
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
-    // References to Other Objects
+    // References
     [Header("Game References")]
     [SerializeField] private BoardManager boardManager;
     [SerializeField] private UIManager uiManager;
     [SerializeField] private GameObject playerPrefab;
 
-    [Header("Available Buildings")]
+    [Header("Game Data")]
     [SerializeField] private BuildingData houseData;
     [SerializeField] private BuildingData shopData;
 
@@ -28,21 +29,21 @@ public class GameManager : MonoBehaviour
     // --- Game Settings ---
     [Header("Game Settings")]
     [SerializeField] private float turnDelay = 1.5f; // Pause between actions
+    [SerializeField][Range(0, 1)] private float specialRollChance = 1f / 6f;
 
-    // --- Internal State Variables ---
+    [Header("Chance Cards")]
+    [SerializeField] private List<ChanceCardData> chanceCardDeck;
+    private PlayerController playerDrawingCard;
+    private ChanceCardData currentlyDrawnCard;
+
+    // --- State Variables ---
     private List<PlayerController> players = new List<PlayerController>();
     private GameState currentState;
     private int turnNumber = 1;
-
-    // Variables to temporarily store the results of a duel for the turn.
-    private int[] playerDiceSums = new int[2];
-    private DuelChoice[] duelChoices = new DuelChoice[2];
     private int duelWinnerIndex;
 
-    // Variables to store who is making a choice and for what tile.
     private PlayerController playerMakingChoice;
     private TileNode tileForChoice;
-
 
     private void Awake()
     {
@@ -52,17 +53,17 @@ public class GameManager : MonoBehaviour
         }
         else
         {
-            { Instance = this; }
+            Instance = this;
         }
     }
 
     void Start()
     {
         SpawnPlayers();
-        UpdateGameState(GameState.WaitingToStart);
+        UpdateGameState(GameState.WaitingForPlayerTurnStart);
     }
 
-    // --- State Machine Controller ---
+    // --- State Machine ---
 
     public void UpdateGameState(GameState newState)
     {
@@ -71,53 +72,66 @@ public class GameManager : MonoBehaviour
 
         switch (currentState)
         {
-            case GameState.WaitingToStart:
-                uiManager.SetRollButtonInteractable(true);
-                uiManager.LogDuelMessage("Press 'Roll' to start the duel!");
+            case GameState.WaitingForPlayerTurnStart:
+                uiManager.ShowRpsChoicePanel();
+                uiManager.LogDuelMessage($"[Turn {turnNumber}] Choose your move!");
                 break;
 
             case GameState.DuelRolling:
-                // Start the DuelSequence coroutine.
-                uiManager.SetRollButtonInteractable(false);
-                StartCoroutine(DuelSequence());
-                break;
-
-            case GameState.BotTurn:
-                // Start the Bot's turn sequence.
-                //StartCoroutine(BotTurnSequence());
+                uiManager.HideRpsChoicePanel();
                 break;
 
             case GameState.TurnEnd:
-                // After everything is done, increment the turn counter and loop back
                 turnNumber++;
-                UpdateGameState(GameState.WaitingToStart);
-                break;
-
-            // These states are "in-between" states managed by the coroutines.
-            // We don't need to do anything special when we enter them.
-            case GameState.PlayerMoving:
-            case GameState.ProcessingTile:
-            case GameState.WaitingForPlayerChoice:
+                UpdateGameState(GameState.WaitingForPlayerTurnStart);
                 break;
         }
     }
-
-    // This is called by the "Roll" button's OnClick event.
-    public void OnRollButtonPressed()
+    // --- Player Actions ---
+    public void OnPlayerChoseAttack(RPS_Choice playerChoice)
     {
-        if (currentState == GameState.WaitingToStart)
-        {
-            UpdateGameState(GameState.DuelRolling);
-        }
+        if (currentState != GameState.WaitingForPlayerTurnStart) return;
+        UpdateGameState(GameState.DuelRolling);
+
+        // Bot makes a random choice
+        RPS_Choice botChoice = (RPS_Choice)Random.Range(0, 3);
+
+        StartCoroutine(ControlledDuelSequence(playerChoice, botChoice));
+    }
+
+    public void PlayerChoseRock()
+    {
+        OnPlayerChoseAttack(RPS_Choice.Rock);
+    }
+
+    public void PlayerChosePaper()
+    {
+        OnPlayerChoseAttack(RPS_Choice.Paper);
+    }
+
+    public void PlayerChoseScissors()
+    {
+        OnPlayerChoseAttack(RPS_Choice.Scissors);
+    }
+
+    public void OnPlayerChoseRandom()
+    {
+        if (currentState != GameState.WaitingForPlayerTurnStart) return;
+        UpdateGameState(GameState.DuelRolling);
+
+        StartCoroutine(RandomDuelSequence());
     }
 
     // --- Coroutines for Timed Game Flow ---
 
-    private IEnumerator DuelSequence()
+    private IEnumerator RandomDuelSequence()
     {
         SoundManager.Instance.PlaySound(SoundManager.Instance.diceRollSfx);
         // --- Roll Dice ---
         uiManager.LogDuelMessage($"[Turn {turnNumber}] Dueling...");
+        int[] playerDiceSums = new int[2];
+        DuelChoice[] duelChoices = new DuelChoice[2];
+
         for (int i = 0; i < players.Count; i++)
         {
             int dice1 = Random.Range(1, 7);
@@ -125,19 +139,40 @@ public class GameManager : MonoBehaviour
             playerDiceSums[i] = dice1 + dice2;
             duelChoices[i] = GetDuelChoiceFromRoll(dice1, dice2);
         }
-        uiManager.ShowDuelResults
-            (duelChoices[0], duelChoices[1], playerDiceSums[0], playerDiceSums[1]);
+        yield return StartCoroutine(RunDuelAndTurns(duelChoices, playerDiceSums));
+    }
 
-        yield return new WaitForSeconds(turnDelay); // Pause to let player see the results.
+    private IEnumerator ControlledDuelSequence(RPS_Choice playerChoice, RPS_Choice botChoice)
+    {
+        // This is the new sequence for when the player makes a specific choice
+        int[] playerDiceSums = new int[2];
+        DuelChoice[] duelChoices = new DuelChoice[2];
 
-        // --- Determine Winner ---
+        // Roll dice that match the player's choice
+        var playerRoll = RollDiceForOutcome(playerChoice);
+        playerDiceSums[0] = playerRoll.dice1 + playerRoll.dice2;
+        duelChoices[0] = new DuelChoice(playerChoice, playerRoll.isSpecial);
+
+        // Roll dice that match the bot's choice
+        var botRoll = RollDiceForOutcome(botChoice);
+        playerDiceSums[1] = botRoll.dice1 + botRoll.dice2;
+        duelChoices[1] = new DuelChoice(botChoice, botRoll.isSpecial);
+
+        yield return StartCoroutine(RunDuelAndTurns(duelChoices, playerDiceSums));
+    }
+
+    private IEnumerator RunDuelAndTurns(DuelChoice[] duelChoices, int[] playerDiceSums)
+    {
+        uiManager.ShowDuelResults(duelChoices[0], duelChoices[1], playerDiceSums[0], playerDiceSums[1]);
+        yield return new WaitForSeconds(turnDelay);
+
         var duelResult = DetermineDuelWinner(duelChoices[0], duelChoices[1]);
         if (duelResult.winner == -1) // TIE
         {
-            uiManager.LogDuelMessage("DUEL IS A TIE! Rerolling...");
+            uiManager.LogDuelMessage("DUEL IS A TIE! Starting a new turn...");
             yield return new WaitForSeconds(turnDelay);
-            UpdateGameState(GameState.DuelRolling); // Start the duel state over again.
-            yield break; // Stop this coroutine because a new one is starting.
+            UpdateGameState(GameState.TurnEnd);
+            yield break;
         }
 
         duelWinnerIndex = duelResult.winner;
@@ -146,35 +181,33 @@ public class GameManager : MonoBehaviour
         uiManager.LogDuelMessage($"Player {duelWinnerIndex + 1} wins the duel!");
         yield return new WaitForSeconds(turnDelay);
 
-        // --- Start Turns, Winner First ---
-        // Player 1 (index 0) is the human. Player 2 (index 1) is the bot.
-        if (duelWinnerIndex == 0) // Human player won.
+        // Execute turns, winner first
+        if (duelWinnerIndex == 0) // Human is first
         {
-            StartCoroutine(PlayerTurnSequence(duelWinnerIndex, duelLoserIndex));
+            yield return StartCoroutine(PlayerTurnSequence(duelWinnerIndex, duelLoserIndex, playerDiceSums));
         }
-        else // Bot won.
+        else // Bot is first
         {
-            StartCoroutine(BotTurnSequence(duelWinnerIndex, duelLoserIndex));
+            yield return StartCoroutine(BotTurnSequence(duelWinnerIndex, duelLoserIndex, playerDiceSums));
         }
     }
 
-    private IEnumerator PlayerTurnSequence(int playerIndex, int loserIndex)
+    private IEnumerator PlayerTurnSequence(int playerIndex, int loserIndex, int[] playerDiceSums)
     {
         UpdateGameState(GameState.PlayerMoving);
         uiManager.LogDuelMessage($"Player {playerIndex + 1}'s turn...");
 
-        // Starts the MoveAndProcessSequence coroutine.
-        ExecuteSinglePlayerTurn(playerIndex);
+        yield return StartCoroutine(ExecuteSinglePlayerTurn(playerIndex, playerDiceSums));
 
-        // Wait for the processing to be fully complete.
-        yield return new WaitUntil(() => currentState == GameState.ProcessingComplete
-            || currentState == GameState.TurnEnd);
+        yield return new WaitUntil(() => currentState == GameState.ProcessingComplete);
 
-        // Check whose turn is next (logic remains the same).
+        yield return new WaitForSeconds(turnDelay / 2);
+
+        // Next turn logic
         if (playerIndex == duelWinnerIndex)
         {
-            if (loserIndex == 0) StartCoroutine(PlayerTurnSequence(loserIndex, playerIndex));
-            else StartCoroutine(BotTurnSequence(loserIndex, playerIndex));
+            if (loserIndex == 0) yield return StartCoroutine(PlayerTurnSequence(loserIndex, playerIndex, playerDiceSums));
+            else yield return StartCoroutine(BotTurnSequence(loserIndex, playerIndex, playerDiceSums));
         }
         else
         {
@@ -182,21 +215,20 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    private IEnumerator BotTurnSequence(int playerIndex, int loserIndex)
+    private IEnumerator BotTurnSequence(int playerIndex, int loserIndex, int[] playerDiceSums)
     {
-        UpdateGameState(GameState.PlayerMoving); // Set state for the bot's turn
+        UpdateGameState(GameState.PlayerMoving);
         uiManager.LogDuelMessage($"Bot's (Player {playerIndex + 1}) turn...");
 
-        // This starts the MoveAndProcessSequence for the bot.
-        ExecuteSinglePlayerTurn(playerIndex);
+        yield return StartCoroutine(ExecuteSinglePlayerTurn(playerIndex, playerDiceSums));
 
-        // Wait for the bot's processing to be fully complete.
-        yield return new WaitUntil(() => currentState == GameState.ProcessingComplete || currentState == GameState.TurnEnd);
+        yield return new WaitUntil(() => currentState == GameState.ProcessingComplete);
+        yield return new WaitForSeconds(turnDelay / 2); // A small matching pause
 
-        // Check whose turn is next
         if (playerIndex == duelWinnerIndex)
         {
-            StartCoroutine(PlayerTurnSequence(loserIndex, playerIndex));
+            if (loserIndex == 0) yield return StartCoroutine(PlayerTurnSequence(loserIndex, playerIndex, playerDiceSums));
+            else yield return StartCoroutine(BotTurnSequence(loserIndex, playerIndex, playerDiceSums));
         }
         else
         {
@@ -206,12 +238,62 @@ public class GameManager : MonoBehaviour
 
     // --- Reusable Action and Helper Methods ---
 
-    private void ExecuteSinglePlayerTurn(int playerIndex)
+    private IEnumerator ExecuteSinglePlayerTurn(int playerIndex, int[] playerDiceSums)
     {
         PlayerController player = players[playerIndex];
         int spacesToMove = playerDiceSums[playerIndex];
+        yield return StartCoroutine(MovePlayerTileByTile(player, spacesToMove));
+        UpdateGameState(GameState.ProcessingTile);
+        ProcessLandedTile(player);
+    }
 
-        StartCoroutine(MoveAndProcessSequence(player, spacesToMove));
+    // --- Dice Logic ---
+    private (int dice1, int dice2, bool isSpecial) RollDiceForOutcome(RPS_Choice choice)
+    {
+        bool isSpecial = (Random.value < specialRollChance); // 1/6 chance
+
+        // --- Step 2: Define all possible dice pairs for the chosen RPS type ---
+        List<(int, int)> normalPairs = new List<(int, int)>();
+        List<(int, int)> specialPairs = new List<(int, int)>();
+
+        if (choice == RPS_Choice.Rock)
+        {
+            // Normal pairs that sum to 3, 6, 9, or 12
+            normalPairs = new List<(int, int)> { (1, 2), (2, 1), (1, 5), (2, 4), (4, 2), (5, 1),
+                                             (3, 6), (4, 5), (5, 4), (6, 3) };
+            // Special (double) pairs
+            specialPairs = new List<(int, int)> { (3, 3), (6, 6) };
+        }
+        else if (choice == RPS_Choice.Paper)
+        {
+            // Normal pairs that sum to 4, 7, or 10
+            normalPairs = new List<(int, int)> { (1, 3), (3, 1), (1, 6), (2, 5), (3, 4), (4, 3),
+                                             (5, 2), (6, 1), (4, 6), (6, 4) };
+            // Special (double) pairs
+            specialPairs = new List<(int, int)> { (2, 2), (5, 5) };
+        }
+        else // Scissors
+        {
+            // Normal pairs that sum to 2, 5, 8, or 11
+            normalPairs = new List<(int, int)> { (1, 4), (2, 3), (3, 2), (4, 1), (2, 6), (3, 5),
+                                             (5, 3), (6, 2), (5, 6), (6, 5) };
+            // Special (double) pairs. The sum of 2 (1+1) is a double.
+            specialPairs = new List<(int, int)> { (1, 1), (4, 4) };
+        }
+
+        // --- Step 3: Pick a roll from the correct list ---
+        if (isSpecial && specialPairs.Any()) // If we decided it's special AND there are special options
+        {
+            // Pick a random pair from the special list
+            var chosenPair = specialPairs[Random.Range(0, specialPairs.Count)];
+            return (chosenPair.Item1, chosenPair.Item2, true); // Return it, flagged as special
+        }
+        else
+        {
+            // Otherwise, pick a random pair from the normal list
+            var chosenPair = normalPairs[Random.Range(0, normalPairs.Count)];
+            return (chosenPair.Item1, chosenPair.Item2, false); // Return it, flagged as NOT special
+        }
     }
 
     private IEnumerator MoveAndProcessSequence(PlayerController player, int spacesToMove)
@@ -222,6 +304,42 @@ public class GameManager : MonoBehaviour
 
         UpdateGameState(GameState.ProcessingTile);
         ProcessLandedTile(player);
+    }
+
+    private void ApplyCardEffect(PlayerController player, ChanceCardData card)
+    {
+        // Log the event to the UI for player feedback.
+        uiManager.LogDuelMessage($"{player.name} drew: {card.cardTitle}!");
+
+        // Use a switch statement to determine what the card does.
+        switch (card.effect)
+        {
+            case ChanceCardEffect.GainMoneyFlat:
+                player.money += card.moneyAmount;
+                uiManager.UpdatePlayerMoney(player);
+                // Let's add a satisfying sound effect for getting money!
+                SoundManager.Instance.PlaySound(SoundManager.Instance.buildPropertySfx); // Reusing the "cha-ching"
+                break;
+
+            case ChanceCardEffect.NextDuelIsGuaranteedWin:
+                player.hasGuaranteedWin = true;
+                // You could add a special UI icon or sound here to indicate a buff.
+                break;
+
+            // Add more 'case' statements here as you create new card effects.
+
+            default:
+                Debug.LogWarning($"No effect implemented for card type: {card.effect}");
+                break;
+        }
+    }
+
+    public void ResumeAfterChanceCard()
+    {
+        // The effect is already applied. We just need to resume the game.
+        playerDrawingCard = null;
+        currentlyDrawnCard = null;
+        UpdateGameState(GameState.ProcessingComplete);
     }
 
     private void ProcessLandedTile(PlayerController activePlayer)
@@ -254,6 +372,25 @@ public class GameManager : MonoBehaviour
                 uiManager.UpdatePlayerMoney(activePlayer);
                 uiManager.UpdatePlayerMoney(landedNode.owner);
                 uiManager.LogDuelMessage($"Bot paid ${rent} rent to Player {landedNode.owner.playerId + 1}!");
+                UpdateGameState(GameState.ProcessingComplete);
+            }
+            else if (landedNode.initialTileType == TileType.Chance)
+            {
+                uiManager.LogDuelMessage("Bot landed on Chance!");
+
+                UpdateGameState(GameState.DrawingChanceCard);
+
+                playerDrawingCard = activePlayer; // Remember the bot is the one drawing
+                currentlyDrawnCard = chanceCardDeck[Random.Range(0, chanceCardDeck.Count)];
+
+                // Apply the effect to the bot immediately.
+                ApplyCardEffect(playerDrawingCard, currentlyDrawnCard);
+
+                // Start the UI coroutine to show the card, then the game will resume.
+                StartCoroutine(uiManager.ShowChanceCardCoroutine(currentlyDrawnCard));
+            } else {
+                uiManager.LogDuelMessage($"Bot landed on {landedNode.initialTileType}. No action.");
+                UpdateGameState(GameState.ProcessingComplete);
             }
         }
         // --- Human Player's Logic ---
@@ -284,6 +421,17 @@ public class GameManager : MonoBehaviour
                     }
                     UpdateGameState(GameState.ProcessingComplete);
                 }
+            }
+            else if (landedNode.initialTileType == TileType.Chance)
+            {
+                UpdateGameState(GameState.DrawingChanceCard);
+
+                playerDrawingCard = activePlayer;
+                currentlyDrawnCard = chanceCardDeck[Random.Range(0, chanceCardDeck.Count)];
+
+                ApplyCardEffect(playerDrawingCard, currentlyDrawnCard);
+
+                StartCoroutine(uiManager.ShowChanceCardCoroutine(currentlyDrawnCard));
             }
             else
             {

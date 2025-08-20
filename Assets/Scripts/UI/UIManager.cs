@@ -1,6 +1,7 @@
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.InputSystem;
 using TMPro;
+using System.Collections;
 
 public class UIManager : MonoBehaviour
 {
@@ -19,8 +20,14 @@ public class UIManager : MonoBehaviour
     [Header("Build Panel")]
     [SerializeField] private GameObject buildPanel;
 
-    [Header("Buttons")]
-    [SerializeField] private Button rollButton; // Reference to the main "Roll" button.
+    [Header("Choice Panel")]
+    [SerializeField] private GameObject rpsChoicePanel;
+
+    [Header("Chance Card Panel")]
+    [SerializeField] private GameObject chanceCardPanel;
+    [SerializeField] private TextMeshProUGUI chanceCardTitleText;
+    [SerializeField] private TextMeshProUGUI chanceCardDescriptionText;
+    [SerializeField] private GameObject continueTextObject; // Reference to the "Click to continue" text
 
     // --- Unity Lifecycle Methods ---
 
@@ -67,16 +74,6 @@ public class UIManager : MonoBehaviour
         Debug.Log(message); // Keep logging to the console for our own debugging.
         duelLogText.text = message;
     }
-
-    // Controls whether the main "Roll" button can be clicked.
-    public void SetRollButtonInteractable(bool isInteractable)
-    {
-        if (rollButton != null)
-        {
-            rollButton.interactable = isInteractable;
-        }
-    }
-
     // --- Build Panel Methods ---
 
     public void ShowBuildPanel()
@@ -101,5 +98,45 @@ public class UIManager : MonoBehaviour
     {
         GameManager.Instance.PlayerChoseToBuild("Shop");
         HideBuildPanel();
+    }
+
+    public void ShowRpsChoicePanel()
+    {
+        rpsChoicePanel.SetActive(true);
+    }
+
+    public void HideRpsChoicePanel()
+    {
+        rpsChoicePanel.SetActive(false);
+    }
+
+    public IEnumerator ShowChanceCardCoroutine(ChanceCardData card)
+    {
+        // --- Phase 1: Show the Card and Wait ---
+
+        chanceCardTitleText.text = card.cardTitle;
+        chanceCardDescriptionText.text = card.cardDescription;
+
+        // Make sure the "continue" text is hidden initially
+        continueTextObject.SetActive(false);
+
+        // Show the panel
+        chanceCardPanel.SetActive(true);
+
+        yield return new WaitForSeconds(2.0f);
+
+        // --- Phase 2: Wait for Player Input ---
+
+        // Show the "continue" text.
+        continueTextObject.SetActive(true);
+
+        yield return new WaitUntil(() => Mouse.current.leftButton.wasPressedThisFrame);
+
+        // --- Phase 3: Hide the Panel and Resume ---
+
+        chanceCardPanel.SetActive(false);
+
+        // Tell the GameManager that the player is done and the game can continue.
+        GameManager.Instance.ResumeAfterChanceCard();
     }
 }

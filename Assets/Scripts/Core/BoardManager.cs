@@ -77,6 +77,22 @@ public class BoardManager : MonoBehaviour
         }
     }
 
+    public int GetBuildingCountForPlayer(PlayerController player)
+    {
+        int count = 0;
+
+        // Loop through the existing path coordinates.
+        foreach (Vector2Int pos in pathCoordinates)
+        {
+            TileNode node = grid.GetGridObject(pos.x, pos.y);
+            if (node.owner == player)
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
     // --- Public Helper Methods for other scripts ---
 
     public TileNode GetNodeAtPosition(Vector2Int gridPosition)

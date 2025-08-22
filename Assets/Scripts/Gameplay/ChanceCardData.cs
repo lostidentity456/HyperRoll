@@ -14,7 +14,7 @@ public class ChanceCardData : ScriptableObject
     // --- Parameters for the effects ---
     // Not all cards will use all parameters, but we include them here for flexibility.
 
-    [Tooltip("Used for GainMoneyFlat")]
+    [Tooltip("Used for GainMoneyFlat and as the base amount for GainMoneyPerBuilding.")]
     public int moneyAmount;
 
     [Tooltip("Used for GainMoneyPerBuilding")]
@@ -22,4 +22,5 @@ public class ChanceCardData : ScriptableObject
 
     [Tooltip("Used for BuildRandomFreeBuilding")]
     public BuildingData buildingToGrant; // e.g., A free House
+
 }

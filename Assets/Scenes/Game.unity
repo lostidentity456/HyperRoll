@@ -2944,6 +2944,7 @@ MonoBehaviour:
   chanceCardDeck:
   - {fileID: 11400000, guid: 70b084bf7d2354143b14ec5b4c00e2fa, type: 2}
   - {fileID: 11400000, guid: 8c10c8a1a4f112749b6926db75cccf8d, type: 2}
+  - {fileID: 11400000, guid: 181d82e260febd6439178bd841cedf08, type: 2}
 --- !u!4 &1441087106
 Transform:
   m_ObjectHideFlags: 0

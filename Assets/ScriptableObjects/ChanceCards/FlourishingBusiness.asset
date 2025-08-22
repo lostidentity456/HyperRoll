@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ae8f5cc64aeb2b4bbfe506ab008cdb3, type: 3}
+  m_Name: FlourishingBusiness
+  m_EditorClassIdentifier: Assembly-CSharp::ChanceCardData
+  cardTitle: Flourishing Business
+  cardDescription: Gain 100$, increase by 50$ for every building you owned.
+  effect: 1
+  moneyAmount: 100
+  moneyPerBuilding: 50
+  buildingToGrant: {fileID: 0}

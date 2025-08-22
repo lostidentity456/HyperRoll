@@ -326,7 +326,26 @@ public class GameManager : MonoBehaviour
                 // You could add a special UI icon or sound here to indicate a buff.
                 break;
 
-            // Add more 'case' statements here as you create new card effects.
+            case ChanceCardEffect.GainMoneyPerBuilding:
+                int buildingCount = CountBuildingsForPlayer(player);
+                int moneyGained = card.moneyAmount + (buildingCount * card.moneyPerBuilding);
+
+                player.money += moneyGained;
+                uiManager.UpdatePlayerMoney(player);
+
+                // Give some extra feedback!
+                uiManager.LogDuelMessage($"Gained ${moneyGained} from {buildingCount} properties!");
+                if (moneyGained > 0)
+                {
+                    SoundManager.Instance.PlaySound(SoundManager.Instance.buildPropertySfx);
+                }
+                break;
+
+            case ChanceCardEffect.TaxImmunity:
+                player.hasTaxImmunity = true;
+                // You could add a UI icon here later to show the player has the buff.
+                uiManager.LogDuelMessage("You gained one-time tax immunity!");
+                break;
 
             default:
                 Debug.LogWarning($"No effect implemented for card type: {card.effect}");
@@ -347,51 +366,60 @@ public class GameManager : MonoBehaviour
         TileNode landedNode = boardManager.GetNodeFromPathIndex(activePlayer.currentPathIndex);
 
         // --- Bot's Logic ---
-        if (activePlayer.playerId == 1) // If it's the bot
+        if (activePlayer.playerId == 1)
         {
             if (landedNode.initialTileType == TileType.Buildable && landedNode.owner == null)
             {
-                // Simple Bot AI: Always build a House if it can afford it.
-                if (activePlayer.money >= houseData.buildingCost)
+                BuildingData buildingToBuild = houseData;
+                if (activePlayer.money >= buildingToBuild.buildingCost + 500)
                 {
-                    activePlayer.money -= houseData.buildingCost;
+                    activePlayer.money -= buildingToBuild.buildingCost;
                     landedNode.owner = activePlayer;
-                    landedNode.currentBuilding = houseData;
+                    landedNode.currentBuilding = buildingToBuild;
                     uiManager.UpdatePlayerMoney(activePlayer);
-                    uiManager.LogDuelMessage($"Bot built a {houseData.buildingName}!");
+                    uiManager.LogDuelMessage($"Bot built a {buildingToBuild.buildingName}!");
+                    SoundManager.Instance.PlaySound(SoundManager.Instance.buildPropertySfx);
                     boardManager.UpdateTileVisual(landedNode, player2BuildingMaterial);
-                    UpdateGameState(GameState.ProcessingComplete);
+                }
+                else
+                {
+                    uiManager.LogDuelMessage("Bot chose not to build to save money.");
                 }
             }
             else if (landedNode.owner != null && landedNode.owner != activePlayer)
             {
-                // Rent logic for when the bot lands on a player's property.
-                int rent = landedNode.currentBuilding.baseRent;
-                activePlayer.money -= rent;
-                landedNode.owner.money += rent;
-                uiManager.UpdatePlayerMoney(activePlayer);
-                uiManager.UpdatePlayerMoney(landedNode.owner);
-                uiManager.LogDuelMessage($"Bot paid ${rent} rent to Player {landedNode.owner.playerId + 1}!");
-                UpdateGameState(GameState.ProcessingComplete);
+                if (activePlayer.hasTaxImmunity)
+                {
+                    activePlayer.hasTaxImmunity = false;
+                    uiManager.LogDuelMessage("Bot used Tax Immunity to avoid paying rent!");
+                    SoundManager.Instance.PlaySound(SoundManager.Instance.buildPropertySfx);
+                }
+                else
+                {
+                    int rent = landedNode.currentBuilding.baseRent;
+                    activePlayer.money -= rent;
+                    landedNode.owner.money += rent;
+                    uiManager.UpdatePlayerMoney(activePlayer);
+                    uiManager.UpdatePlayerMoney(landedNode.owner);
+                    uiManager.LogDuelMessage($"Bot paid ${rent} rent to Player {landedNode.owner.playerId + 1}!");
+                }
             }
             else if (landedNode.initialTileType == TileType.Chance)
             {
-                uiManager.LogDuelMessage("Bot landed on Chance!");
-
                 UpdateGameState(GameState.DrawingChanceCard);
-
-                playerDrawingCard = activePlayer; // Remember the bot is the one drawing
+                playerDrawingCard = activePlayer;
                 currentlyDrawnCard = chanceCardDeck[Random.Range(0, chanceCardDeck.Count)];
-
-                // Apply the effect to the bot immediately.
                 ApplyCardEffect(playerDrawingCard, currentlyDrawnCard);
-
-                // Start the UI coroutine to show the card, then the game will resume.
                 StartCoroutine(uiManager.ShowChanceCardCoroutine(currentlyDrawnCard));
-            } else {
-                uiManager.LogDuelMessage($"Bot landed on {landedNode.initialTileType}. No action.");
-                UpdateGameState(GameState.ProcessingComplete);
+                return;
             }
+            else
+            {
+                uiManager.LogDuelMessage($"Bot landed on {landedNode.initialTileType}. No action.");
+            }
+
+            // This line now only runs for instant actions (Build, Rent, No Action).
+            UpdateGameState(GameState.ProcessingComplete);
         }
         // --- Human Player's Logic ---
         else
@@ -400,24 +428,32 @@ public class GameManager : MonoBehaviour
             {
                 if (landedNode.owner == null)
                 {
-                    // Unowned buildable tile: Ask the player to choose.
                     playerMakingChoice = activePlayer;
                     tileForChoice = landedNode;
                     uiManager.ShowBuildPanel();
-                    UpdateGameState(GameState.WaitingForPlayerChoice); // Game waits here.
+                    UpdateGameState(GameState.WaitingForPlayerChoice);
+
+                    return;
                 }
                 else
                 {
-                    // Tile is owned by someone (either bot or player).
                     if (landedNode.owner != activePlayer)
                     {
-                        // Pay rent to the bot. This is an instant action.
-                        int rent = landedNode.currentBuilding.baseRent;
-                        activePlayer.money -= rent;
-                        landedNode.owner.money += rent;
-                        uiManager.UpdatePlayerMoney(activePlayer);
-                        uiManager.UpdatePlayerMoney(landedNode.owner);
-                        uiManager.LogDuelMessage($"Player {activePlayer.playerId + 1} paid ${rent} rent to Bot!");
+                        if (activePlayer.hasTaxImmunity)
+                        {
+                            activePlayer.hasTaxImmunity = false;
+                            uiManager.LogDuelMessage("Player used Tax Immunity to avoid paying rent!");
+                            SoundManager.Instance.PlaySound(SoundManager.Instance.buildPropertySfx); // Play a "success" sound
+                        }
+                        else
+                        {
+                            int rent = landedNode.currentBuilding.baseRent;
+                            activePlayer.money -= rent;
+                            landedNode.owner.money += rent;
+                            uiManager.UpdatePlayerMoney(activePlayer);
+                            uiManager.UpdatePlayerMoney(landedNode.owner);
+                            uiManager.LogDuelMessage($"Player {landedNode.owner.playerId + 1} paid ${rent} rent to Bot!");
+                        }
                     }
                     UpdateGameState(GameState.ProcessingComplete);
                 }
@@ -425,13 +461,11 @@ public class GameManager : MonoBehaviour
             else if (landedNode.initialTileType == TileType.Chance)
             {
                 UpdateGameState(GameState.DrawingChanceCard);
-
                 playerDrawingCard = activePlayer;
                 currentlyDrawnCard = chanceCardDeck[Random.Range(0, chanceCardDeck.Count)];
-
                 ApplyCardEffect(playerDrawingCard, currentlyDrawnCard);
-
                 StartCoroutine(uiManager.ShowChanceCardCoroutine(currentlyDrawnCard));
+                return;
             }
             else
             {
@@ -527,6 +561,13 @@ public class GameManager : MonoBehaviour
 
             // yield return new WaitForSeconds(0.05f);
         }
+    }
+
+    private int CountBuildingsForPlayer(PlayerController player)
+    {
+        int buildingCount = 0;
+        buildingCount = boardManager.GetBuildingCountForPlayer(player);
+        return buildingCount;
     }
 
     private IEnumerator MovePlayerSmoothly(PlayerController player, Vector3 targetPosition, float duration)

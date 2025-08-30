@@ -9,5 +9,6 @@ public enum GameState
     WaitingForPlayerChoice,       // The "Build?" panel is on screen, waiting for a click.
     ProcessingComplete,           // The player has made their choice
     BotTurn,                          // The bot is "thinking" and taking its turn.
-    TurnEnd                          // The turn is over, preparing for the next.
+    TurnEnd,                          // The turn is over, preparing for the next.
+    GameOver
 }

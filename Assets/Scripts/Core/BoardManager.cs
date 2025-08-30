@@ -5,49 +5,71 @@ using static TileData;
 public class BoardManager : MonoBehaviour
 {
     [Header("Board Dimensions")]
-    [SerializeField] private int width = 12;  // Your 12x12 board
-    [SerializeField] private int height = 12;
+    // The board is 12x12, but there is a layer of building outside every buildable tile
+    [SerializeField] private int width = 14;  
+    [SerializeField] private int height = 14;
     [SerializeField] private float cellSize = 10f;
 
-    [Header("Prefabs & Data")]
-    [SerializeField] private GameObject tilePrefab; // A simple cube for the visual
-    private Dictionary<Vector2Int, GameObject> tileVisuals = new Dictionary<Vector2Int, GameObject>();
+    [Header("Visual Prefabs")]
+    // Prefab for all board pieces
+    [SerializeField] private GameObject tilePrefab;
 
-    // We only need ScriptableObjects for our *special* corner tiles
-    [SerializeField] private TileData goTileData;
-    [SerializeField] private TileData chanceTileData;
+    [Header("Tile Materials")]
+    [SerializeField] private Material Player1GoMaterial;
+    [SerializeField] private Material Player2GoMaterial;
+    [SerializeField] private Material chanceMaterial;
+    [SerializeField] private Material availablePlotMaterial;
+
+    // Dictionaries to store references to the created visuals for later changes.
+    private Dictionary<Vector2Int, GameObject> tileVisuals = new Dictionary<Vector2Int, GameObject>();
+    private Dictionary<Vector2Int, GameObject> plotVisuals = new Dictionary<Vector2Int, GameObject>();
+    private Dictionary<Vector2Int, GameObject> buildingVisuals = new Dictionary<Vector2Int, GameObject>();
 
     private Grid<TileNode> grid;
-    private List<Vector2Int> pathCoordinates; // Stores the ordered path
+    private List<Vector2Int> pathCoordinates;
 
     void Start()
     {
         InitializeBoard();
         DrawBoardVisuals();
+        DrawPlotVisuals();
     }
 
     void InitializeBoard()
     {
-        // 1. Create the logical grid that holds our TileNode objects
         grid = new Grid<TileNode>(width, height, cellSize, Vector3.zero, (g, x, y) => new TileNode(g, x, y));
+
         pathCoordinates = new List<Vector2Int>();
+        int min = 1; 
+        int max = 12; 
 
-        // 2. Generate the path coordinates in a clockwise loop
-        for (int x = 0; x < width - 1; x++) 
-            pathCoordinates.Add(new Vector2Int(x, 0));           // Bottom row
-        for (int y = 0; y < height - 1; y++)
-            pathCoordinates.Add(new Vector2Int(width - 1, y));    // Right col
-        for (int x = width - 1; x > 0; x--)
-            pathCoordinates.Add(new Vector2Int(x, height - 1));  // Top row
-        for (int y = height - 1; y > 0; y--)
-            pathCoordinates.Add(new Vector2Int(0, y));        // Left col
+        // Bottom row (from left to right)
+        for (int x = min; x < max; x++) pathCoordinates.Add(new Vector2Int(x, min));
+        // Right col (from bottom to top)
+        for (int y = min; y < max; y++) pathCoordinates.Add(new Vector2Int(max, y));
+        // Top row (from right to left)
+        for (int x = max; x > min; x--) pathCoordinates.Add(new Vector2Int(x, max));
+        // Left col (from top to bottom)
+        for (int y = max; y > min; y--) pathCoordinates.Add(new Vector2Int(min, y));
 
-        // 3. Assign the special tile types to the corners
-        // Get the node at each corner and set its fundamental type
-        grid.GetGridObject(0, 0).initialTileType = TileType.Go;         // Player 1's Go
-        grid.GetGridObject(width - 1, 0).initialTileType = TileType.Chance;
-        grid.GetGridObject(width - 1, height - 1).initialTileType = TileType.Go; // Player 2's Go
-        grid.GetGridObject(0, height - 1).initialTileType = TileType.Chance;
+        Debug.Log($"Path generation complete. Total path tiles: {pathCoordinates.Count}"); // Should be 44
+
+        for (int i = 0; i < pathCoordinates.Count; i++)
+        {
+            Vector2Int pos = pathCoordinates[i];
+            TileNode node = grid.GetGridObject(pos.x, pos.y);
+
+            // We need to give each node its own path index so it knows where it is in the sequence.
+            if (node != null)
+            {
+                node.pathIndex = i;
+            }
+        }
+
+        grid.GetGridObject(min, min).initialTileType = TileType.Go;         // Bottom-left (1, 1)
+        grid.GetGridObject(max, min).initialTileType = TileType.Chance;    // Bottom-right (12, 1)
+        grid.GetGridObject(max, max).initialTileType = TileType.Go;         // Top-right (12, 12)
+        grid.GetGridObject(min, max).initialTileType = TileType.Chance;    // Top-left (1, 12) - THIS IS THE FIX.
     }
 
     void DrawBoardVisuals()
@@ -55,37 +77,114 @@ public class BoardManager : MonoBehaviour
         foreach (Vector2Int pos in pathCoordinates)
         {
             Vector3 worldPos = grid.GetWorldPosition(pos.x, pos.y);
-
             GameObject tileObject = Instantiate(tilePrefab, worldPos, Quaternion.identity, this.transform);
-
             tileVisuals[pos] = tileObject;
+
+            TileNode node = grid.GetGridObject(pos.x, pos.y);
+            Renderer tileRenderer = tileObject.GetComponent<Renderer>();
+            if (tileRenderer == null) continue; // Safety check
+
+            if (node.initialTileType == TileData.TileType.Chance)
+            {
+                tileRenderer.material = chanceMaterial;
+            }
+            else if (node.initialTileType == TileData.TileType.Go)
+            {
+                if (node.x == 1 && node.y == 1)
+                {
+                    tileRenderer.material = Player1GoMaterial;
+                }
+                else 
+                {
+                    tileRenderer.material = Player2GoMaterial;
+                }
+            }
         }
     }
 
-    public void UpdateTileVisual(TileNode node, Material buildingMat)
+    private void DrawPlotVisuals()
     {
-        if (node != null && buildingMat != null)
+        foreach (Vector2Int pathPos in pathCoordinates)
         {
-            Vector2Int pos = new Vector2Int(node.x, node.y);
-
-            if (tileVisuals.ContainsKey(pos))
+            TileNode nodeOnPath = grid.GetGridObject(pathPos.x, pathPos.y);
+            if (nodeOnPath != null && nodeOnPath.initialTileType == TileData.TileType.Buildable)
             {
-                GameObject tileObject = tileVisuals[pos];
-                Renderer tileRenderer = tileObject.GetComponent<Renderer>();
-                tileRenderer.material = buildingMat;
+                Vector2Int plotPos = CalculatePlotPosition(pathPos);
+                Vector3 plotWorldPos = grid.GetWorldPosition(plotPos.x, plotPos.y);
+
+                // Use the single, consolidated prefab.
+                GameObject plotObject = Instantiate(tilePrefab, plotWorldPos, Quaternion.identity, this.transform);
+
+                // Apply the "Available" green material.
+                plotObject.GetComponent<Renderer>().material = availablePlotMaterial;
+
+                // Store a reference to it, using the path tile's position as the key.
+                plotVisuals[pathPos] = plotObject;
             }
         }
+    }
+
+    public void UpdateTileVisual(TileNode node, Material ownerMaterial)
+    {
+        Vector2Int pos = new Vector2Int(node.x, node.y);
+        if (tileVisuals.ContainsKey(pos))
+        {
+            tileVisuals[pos].GetComponent<Renderer>().material = ownerMaterial;
+        }
+    }
+
+    public void UpdatePlotVisual(TileNode node, Material ownerMaterial)
+    {
+        Vector2Int pathPos = new Vector2Int(node.x, node.y);
+        if (plotVisuals.ContainsKey(pathPos))
+        {
+            plotVisuals[pathPos].GetComponent<Renderer>().material = ownerMaterial;
+        }
+    }
+
+    public void UpdateBuildingVisual(TileNode nodeOnPath, Material buildingMat, GameObject buildingPrefab)
+    {
+        Vector2Int pathPos = new Vector2Int(nodeOnPath.x, nodeOnPath.y);
+
+        // This method now ONLY handles the small building object itself.
+        if (buildingVisuals.ContainsKey(pathPos))
+        {
+            // Logic for upgrading an existing building's material.
+            buildingVisuals[pathPos].GetComponent<Renderer>().material = buildingMat;
+        }
+        else
+        {
+            // Create a new building object on the plot.
+            Vector2Int plotPos = CalculatePlotPosition(pathPos);
+            Vector3 buildingWorldPos = grid.GetWorldPosition(plotPos.x, plotPos.y);
+
+            // We still need a height offset so it sits ON TOP of the plot visual.
+            buildingWorldPos.y += 0.8f; // Adjust as needed
+
+            GameObject buildingObj = Instantiate(buildingPrefab, buildingWorldPos, Quaternion.identity, this.transform);
+            buildingObj.GetComponent<Renderer>().material = buildingMat;
+
+            buildingVisuals[pathPos] = buildingObj;
+        }
+    }
+
+    private Vector2Int CalculatePlotPosition(Vector2Int pathPos)
+    {
+        Vector2Int plotPos = pathPos;
+        if (pathPos.y == 1) plotPos.y--;       // Bottom edge
+        else if (pathPos.x == 12) plotPos.x++; // Right edge
+        else if (pathPos.y == 12) plotPos.y++; // Top edge
+        else if (pathPos.x == 1) plotPos.x--;  // Left edge
+        return plotPos;
     }
 
     public int GetBuildingCountForPlayer(PlayerController player)
     {
         int count = 0;
-
-        // Loop through the existing path coordinates.
         foreach (Vector2Int pos in pathCoordinates)
         {
             TileNode node = grid.GetGridObject(pos.x, pos.y);
-            if (node.owner == player)
+            if (node != null && node.owner == player)
             {
                 count++;
             }
@@ -108,6 +207,16 @@ public class BoardManager : MonoBehaviour
 
     public TileNode GetNodeFromPathIndex(int pathIndex)
     {
+        if (pathCoordinates == null || pathCoordinates.Count == 0)
+        {
+            Debug.LogError("Path Coordinates list has not been initialized!");
+            return null;
+        }
+        if (pathIndex < 0 || pathIndex >= pathCoordinates.Count)
+        {
+            Debug.LogError($"Path Index {pathIndex} is out of bounds! Path size is {pathCoordinates.Count}.");
+            return null;
+        }
         Vector2Int gridPos = pathCoordinates[pathIndex];
         return GetNodeAtPosition(gridPos);
     }

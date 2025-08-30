@@ -6,7 +6,7 @@ public class TileNode
     // The grid this node belongs to and its position
     private Grid<TileNode> grid;
     public readonly int x, y;
-
+    public int pathIndex;
     // The fundamental type of this tile, set at the start
     public TileType initialTileType;
 

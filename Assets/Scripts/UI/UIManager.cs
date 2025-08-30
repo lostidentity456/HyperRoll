@@ -1,36 +1,39 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
+using UnityEngine.UI;
 using TMPro;
 using System.Collections;
 
 public class UIManager : MonoBehaviour
 {
+    // --- Singleton Setup ---
     public static UIManager Instance { get; private set; }
 
-    // --- UI Element References ---
+    // --- References ---
     [Header("Player HUD")]
     [SerializeField] private TextMeshProUGUI player1MoneyText;
     [SerializeField] private TextMeshProUGUI player2MoneyText;
 
     [Header("Duel Display")]
-    [SerializeField] private TextMeshProUGUI player1DuelText; // For "Player 1: Rock (10)"
-    [SerializeField] private TextMeshProUGUI player2DuelText; // For "Bot: Paper (8)"
-    [SerializeField] private TextMeshProUGUI duelLogText;     // For "Player 1 Wins!" etc.
+    [SerializeField] private TextMeshProUGUI player1DuelText;
+    [SerializeField] private TextMeshProUGUI player2DuelText;
+    [SerializeField] private TextMeshProUGUI duelLogText;
 
-    [Header("Build Panel")]
-    [SerializeField] private GameObject buildPanel;
-
-    [Header("Choice Panel")]
+    [Header("Choice Panels")]
     [SerializeField] private GameObject rpsChoicePanel;
+    [SerializeField] private GameObject buildPanel;
+    [SerializeField] private GameObject chanceCardPanel;
+
+    [Header("Build Panel Buttons")]
+    [SerializeField] private Button buildHouseButton;
+    [SerializeField] private Button buildShopButton;
+    [SerializeField] private Button passTurnButton;
 
     [Header("Chance Card Panel")]
-    [SerializeField] private GameObject chanceCardPanel;
     [SerializeField] private TextMeshProUGUI chanceCardTitleText;
     [SerializeField] private TextMeshProUGUI chanceCardDescriptionText;
-    [SerializeField] private GameObject continueTextObject; // Reference to the "Click to continue" text
+    [SerializeField] private GameObject continueTextObject;
 
-    // --- Unity Lifecycle Methods ---
-
+    // --- Unity Methods ---
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -43,51 +46,95 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    // --- Public Methods Called by GameManager ---
+
     public void UpdatePlayerMoney(PlayerController player)
     {
-        if (player.playerId == 0) // Player 1 (Human)
+        string playerName = (player.playerId == 0) ? "Player 1" : "Bot";
+        TextMeshProUGUI targetText = (player.playerId == 0) ? player1MoneyText : player2MoneyText;
+
+        if (targetText != null)
         {
-            player1MoneyText.text = $"Player 1: ${player.money}";
-        }
-        else if (player.playerId == 1) // Player 2 (Bot)
-        {
-            player2MoneyText.text = $"Bot: ${player.money}";
+            targetText.text = $"{playerName}: ${player.money}";
         }
     }
 
     public void ShowDuelResults(DuelChoice p1Choice, DuelChoice p2Choice, int p1Sum, int p2Sum)
     {
-        // Build the string for Player 1's result
-        string p1Special = p1Choice.isSpecial ? " (S!)" : ""; // "S!" for Special
+        string p1Special = p1Choice.isSpecial ? " (S!)" : "";
         player1DuelText.text = $"Player 1: {p1Choice.type}{p1Special} [{p1Sum}]";
-        player1DuelText.gameObject.SetActive(true);
 
-        // Build the string for Player 2's (Bot's) result
         string p2Special = p2Choice.isSpecial ? " (S!)" : "";
         player2DuelText.text = $"Bot: {p2Choice.type}{p2Special} [{p2Sum}]";
-        player2DuelText.gameObject.SetActive(true);
     }
 
-    // This is for general messages like "Player 1 Wins!" or "Tie! Rerolling..."
     public void LogDuelMessage(string message)
     {
-        Debug.Log(message); // Keep logging to the console for our own debugging.
-        duelLogText.text = message;
+        if (duelLogText != null)
+        {
+            duelLogText.text = message;
+        }
     }
-    // --- Build Panel Methods ---
 
-    public void ShowBuildPanel()
+    // --- Panel Control ---
+
+    public void ShowRpsChoicePanel()
     {
+        if (rpsChoicePanel != null) rpsChoicePanel.SetActive(true);
+    }
+
+    public void HideRpsChoicePanel()
+    {
+        if (rpsChoicePanel != null) rpsChoicePanel.SetActive(false);
+    }
+
+    public void ShowBuildPanel(PlayerController player, BuildingData houseData, BuildingData shopData)
+    {
+        if (buildPanel == null) return;
+
+        if (buildHouseButton != null)
+            buildHouseButton.interactable = (player.money >= houseData.buildingCost);
+
+        if (buildShopButton != null)
+            buildShopButton.interactable = (player.money >= shopData.buildingCost);
+
+        if (passTurnButton != null)
+            passTurnButton.interactable = true;
+
         buildPanel.SetActive(true);
-        // We've disabled the Roll button, so the player MUST make a choice.
     }
 
     public void HideBuildPanel()
     {
-        buildPanel.SetActive(false);
+        if (buildPanel != null) buildPanel.SetActive(false);
     }
 
-    // These methods are called directly BY THE BUTTONS' OnClick() events in the Unity Editor.
+    // This is the coroutine for the chance card, as we designed.
+    public IEnumerator ShowChanceCardCoroutine(ChanceCardData card)
+    {
+        if (chanceCardPanel == null) yield break; // Safety check
+
+        chanceCardTitleText.text = card.cardTitle;
+        chanceCardDescriptionText.text = card.cardDescription;
+        if (continueTextObject != null) continueTextObject.SetActive(false);
+
+        chanceCardPanel.SetActive(true);
+
+        yield return new WaitForSeconds(2.0f);
+
+        if (continueTextObject != null) continueTextObject.SetActive(true);
+
+        // This requires the Input System Package
+        yield return new WaitUntil(() => UnityEngine.InputSystem.Mouse.current.leftButton.wasPressedThisFrame);
+
+        chanceCardPanel.SetActive(false);
+
+        GameManager.Instance.ResumeAfterChanceCard();
+    }
+
+
+    // Methods called by UI buttons 
+
     public void OnBuildHouseClicked()
     {
         GameManager.Instance.PlayerChoseToBuild("House");
@@ -100,43 +147,10 @@ public class UIManager : MonoBehaviour
         HideBuildPanel();
     }
 
-    public void ShowRpsChoicePanel()
+    public void OnPassTurnClicked()
     {
-        rpsChoicePanel.SetActive(true);
-    }
-
-    public void HideRpsChoicePanel()
-    {
-        rpsChoicePanel.SetActive(false);
-    }
-
-    public IEnumerator ShowChanceCardCoroutine(ChanceCardData card)
-    {
-        // --- Phase 1: Show the Card and Wait ---
-
-        chanceCardTitleText.text = card.cardTitle;
-        chanceCardDescriptionText.text = card.cardDescription;
-
-        // Make sure the "continue" text is hidden initially
-        continueTextObject.SetActive(false);
-
-        // Show the panel
-        chanceCardPanel.SetActive(true);
-
-        yield return new WaitForSeconds(2.0f);
-
-        // --- Phase 2: Wait for Player Input ---
-
-        // Show the "continue" text.
-        continueTextObject.SetActive(true);
-
-        yield return new WaitUntil(() => Mouse.current.leftButton.wasPressedThisFrame);
-
-        // --- Phase 3: Hide the Panel and Resume ---
-
-        chanceCardPanel.SetActive(false);
-
-        // Tell the GameManager that the player is done and the game can continue.
-        GameManager.Instance.ResumeAfterChanceCard();
+        // We need to add this method to GameManager.cs
+        GameManager.Instance.PlayerChoseToPass();
+        HideBuildPanel();
     }
 }

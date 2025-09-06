@@ -1,0 +1,18 @@
+# Set the default behavior, in case people don't have core.autocrlf set.
+* text=auto
+
+# C# files
+*.cs text eol=crlf
+
+# Unity-specific text files
+*.unity text eol=crlf
+*.prefab text eol=crlf
+*.mat text eol=crlf
+*.meta text eol=crlf
+*.asset text eol=crlf
+
+# Image files should be treated as binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary

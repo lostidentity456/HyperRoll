@@ -14,6 +14,8 @@ public class TileNode
     public PlayerController owner; // Who owns the building on this tile? Null if nobody.
     public BuildingData currentBuilding;
 
+    public int buildingLevel = 0;
+
     public TileNode(Grid<TileNode> grid, int x, int y)
     {
         this.grid = grid;

@@ -14,5 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BuildingData
   buildingName: House
   buildingCost: 100
-  baseRent: 20
-  buildingMaterial: {fileID: 2100000, guid: 3090757e44bcd744489a4d4c5b4a1c7d, type: 2}
+  baseIncomeRate: 0.05
+  taxRatesPerLevel:
+  - 0.2
+  - 0.4
+  - 0.6

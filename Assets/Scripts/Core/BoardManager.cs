@@ -192,6 +192,21 @@ public class BoardManager : MonoBehaviour
         return count;
     }
 
+    public List<TileNode> GetAllPropertyNodes()
+    {
+        List<TileNode> propertyNodes = new List<TileNode>();
+        foreach (Vector2Int pos in pathCoordinates)
+        {
+            TileNode node = grid.GetGridObject(pos.x, pos.y);
+            // A property is any tile that has an owner.
+            if (node != null && node.owner != null)
+            {
+                propertyNodes.Add(node);
+            }
+        }
+        return propertyNodes;
+    }
+
     // --- Public Helper Methods for other scripts ---
 
     public TileNode GetNodeAtPosition(Vector2Int gridPosition)

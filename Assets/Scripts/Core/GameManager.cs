@@ -38,6 +38,12 @@ public class GameManager : MonoBehaviour
     private PlayerController playerDrawingCard;
     private ChanceCardData currentlyDrawnCard;
 
+    [Header("Stage System")]
+    [SerializeField] private int duelsPerStage = 10;
+    private int currentStage = 1;
+    private int duelCountInCurrentStage = 0;
+    private float taxMultiplier = 1.0f;
+
     // --- State Variables ---
     private List<PlayerController> players = new List<PlayerController>();
     private GameState currentState;
@@ -83,6 +89,19 @@ public class GameManager : MonoBehaviour
                 break;
 
             case GameState.TurnEnd:
+                uiManager.LogDuelMessage("Collecting income and taxes...");
+                CollectPassiveIncome();
+
+                duelCountInCurrentStage++;
+
+                uiManager.LogDuelMessage($"Duel {duelCountInCurrentStage}/{duelsPerStage} of Stage {currentStage}");
+
+                // Check if this duel was the last one of the stage
+                if (duelCountInCurrentStage >= duelsPerStage)
+                {
+                    // If it was, advance to the next stage
+                    AdvanceToNextStage();
+                }
                 turnNumber++;
                 UpdateGameState(GameState.WaitingForPlayerTurnStart);
                 break;
@@ -171,9 +190,11 @@ public class GameManager : MonoBehaviour
         var duelResult = DetermineDuelWinner(duelChoices[0], duelChoices[1]);
         if (duelResult.winner == -1) // TIE
         {
-            uiManager.LogDuelMessage("DUEL IS A TIE! Starting a new turn...");
+            uiManager.LogDuelMessage("DUEL IS A TIE! Choose your move again.");
             yield return new WaitForSeconds(turnDelay);
-            UpdateGameState(GameState.TurnEnd);
+
+            UpdateGameState(GameState.WaitingForPlayerTurnStart);
+
             yield break;
         }
 
@@ -183,7 +204,6 @@ public class GameManager : MonoBehaviour
         uiManager.LogDuelMessage($"Player {duelWinnerIndex + 1} wins the duel!");
         yield return new WaitForSeconds(turnDelay);
 
-        // Execute turns, winner first
         if (duelWinnerIndex == 0) // Human is first
         {
             yield return StartCoroutine(PlayerTurnSequence(duelWinnerIndex, duelLoserIndex, playerDiceSums));
@@ -365,31 +385,39 @@ public class GameManager : MonoBehaviour
 
     // --- After Duel Processing ---
 
-    private void HandleRentPayment(PlayerController payingPlayer, PlayerController receivingPlayer, int rentAmount)
+    private void HandleTaxPayment(PlayerController payingPlayer, PlayerController receivingPlayer, TileNode propertyNode)
     {
+        // Get the building data and level from the node
+        BuildingData building = propertyNode.currentBuilding;
+        int level = propertyNode.buildingLevel;
+
+        // Calculate the tax amount
+        float taxRate = building.GetTaxRateForLevel(level);
+        int taxAmount = Mathf.RoundToInt(building.buildingCost * taxRate);
+
         // Check for bankruptcy
-        if (payingPlayer.money < rentAmount)
+        if (payingPlayer.money < taxAmount)
         {
             uiManager.LogDuelMessage($"{payingPlayer.name} is bankrupt! {receivingPlayer.name} wins!");
             UpdateGameState(GameState.GameOver);
             return;
         }
 
-        // Check for tax immunity
+        // Check for tax immunity.
         if (payingPlayer.hasTaxImmunity)
         {
-            payingPlayer.hasTaxImmunity = false; // Consume the buff
-            uiManager.LogDuelMessage($"{payingPlayer.name} used Tax Immunity to avoid paying rent!");
+            payingPlayer.hasTaxImmunity = false;
+            uiManager.LogDuelMessage($"{payingPlayer.name} used Tax Immunity to avoid paying tax!");
             SoundManager.Instance.PlaySound(SoundManager.Instance.buildPropertySfx);
         }
         else
         {
-            // Perform the transaction
-            payingPlayer.money -= rentAmount;
-            receivingPlayer.money += rentAmount;
+            // Perform the transaction.
+            payingPlayer.money -= taxAmount;
+            receivingPlayer.money += taxAmount;
             uiManager.UpdatePlayerMoney(payingPlayer);
             uiManager.UpdatePlayerMoney(receivingPlayer);
-            uiManager.LogDuelMessage($"{payingPlayer.name} paid ${rentAmount} rent to {receivingPlayer.name}!");
+            uiManager.LogDuelMessage($"{payingPlayer.name} paid ${taxAmount} tax to {receivingPlayer.name}!");
         }
     }
 
@@ -411,7 +439,7 @@ public class GameManager : MonoBehaviour
             {
                 if (landedNode.owner != player)
                 {
-                    HandleRentPayment(player, landedNode.owner, landedNode.currentBuilding.baseRent);
+                    HandleTaxPayment(player, landedNode.owner, landedNode);
                 }
 
                 if (currentState != GameState.GameOver)
@@ -450,6 +478,8 @@ public class GameManager : MonoBehaviour
                 bot.money -= buildingToBuild.buildingCost;
                 landedNode.owner = bot;
                 landedNode.currentBuilding = buildingToBuild;
+                landedNode.buildingLevel = 1;
+
                 uiManager.UpdatePlayerMoney(bot);
                 // FOR NOW, TILE WILL HAVE BUILDING COLOR. THIS IS TEMPORARY.
                 boardManager.UpdateTileVisual(landedNode, player2BuildingMaterial);
@@ -466,7 +496,7 @@ public class GameManager : MonoBehaviour
         // Landing on an opponent's property.
         else if (landedNode.owner != null && landedNode.owner != bot)
         {
-            HandleRentPayment(bot, landedNode.owner, landedNode.currentBuilding.baseRent);
+            HandleTaxPayment(bot, landedNode.owner, landedNode);
 
             if (currentState != GameState.GameOver)
             {
@@ -530,6 +560,8 @@ public class GameManager : MonoBehaviour
             boardManager.UpdateTileVisual(tileForChoice, player1BuildingMaterial);
             boardManager.UpdateBuildingVisual(tileForChoice, player1BuildingMaterial, buildingVisualPrefab);
 
+            tileForChoice.buildingLevel = 1;
+
             uiManager.UpdatePlayerMoney(playerMakingChoice);
             uiManager.LogDuelMessage($"Player {playerMakingChoice.playerId + 1} built a {selectedBuilding.buildingName}!");
 
@@ -553,6 +585,64 @@ public class GameManager : MonoBehaviour
         playerMakingChoice = null;
         tileForChoice = null;
         UpdateGameState(GameState.ProcessingComplete);
+    }
+
+    private void CollectPassiveIncome()
+    {
+        // Get a list of all properties on the board
+        List<TileNode> allProperties = boardManager.GetAllPropertyNodes();
+
+        foreach (TileNode property in allProperties)
+        {
+            if (property.owner != null && property.currentBuilding != null)
+            {
+                Debug.Log($"--- Calculating Income for {property.owner.name} on tile {property.pathIndex} ---");
+                Debug.Log($"Building Type: {property.currentBuilding.buildingName}");
+                Debug.Log($"Building Level: {property.buildingLevel}");
+                Debug.Log($"Building Base Value (Cost): {property.currentBuilding.buildingCost}");
+                Debug.Log($"Building Base Income Rate: {property.currentBuilding.baseIncomeRate}");
+
+                // Calculate Gross Income -> exponential growth
+                float currentIncomeRate = property.currentBuilding.baseIncomeRate * Mathf.Pow(2, property.buildingLevel - 1);
+                int grossIncome = Mathf.RoundToInt(property.currentBuilding.buildingCost * currentIncomeRate);
+
+                // Apply Gross Income
+                property.owner.money += grossIncome;
+
+                if (grossIncome > 0)
+                {
+                    Debug.Log($"{property.owner.name} earned ${grossIncome} passive income from their {property.currentBuilding.buildingName}.");
+                }
+            }
+        }
+        uiManager.UpdatePlayerMoney(players[0]);
+        uiManager.UpdatePlayerMoney(players[1]);
+    }
+
+    private void AdvanceToNextStage()
+    {
+        // Reset the duel counter for the new stage
+        duelCountInCurrentStage = 0;
+
+        // Increment the stage, but cap it at 5
+        currentStage = Mathf.Min(currentStage + 1, 5);
+
+        // Update the tax multiplier based on the new stage
+        switch (currentStage)
+        {
+            case 2: taxMultiplier = 2.0f; break;
+            case 3: taxMultiplier = 3.0f; break;
+            case 4: taxMultiplier = 4.0f; break;
+            case 5: taxMultiplier = 5.0f; break;
+            default: taxMultiplier = 1.0f; break; // Stage 1
+        }
+
+        // Announce the new stage to the player!
+        // We'll need a new UI element for this later. For now, a log is fine.
+        uiManager.LogDuelMessage($"Stage {currentStage} begins! Rent is now multiplied by x{taxMultiplier}!");
+
+        // Here is where you would trigger the Power-Up selection UI for the player
+        // if (currentStage <= 3) { ShowPowerUpSelection(); }
     }
 
     // --- Spawning and Initialization ---

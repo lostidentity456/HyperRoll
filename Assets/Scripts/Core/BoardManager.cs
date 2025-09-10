@@ -37,6 +37,7 @@ public class BoardManager : MonoBehaviour
 
     void InitializeBoard()
     {
+        // Initialize the grid with TileNode objects
         grid = new Grid<TileNode>(width, height, cellSize, Vector3.zero, (g, x, y) => new TileNode(g, x, y));
 
         pathCoordinates = new List<Vector2Int>();
@@ -59,7 +60,6 @@ public class BoardManager : MonoBehaviour
             Vector2Int pos = pathCoordinates[i];
             TileNode node = grid.GetGridObject(pos.x, pos.y);
 
-            // We need to give each node its own path index so it knows where it is in the sequence.
             if (node != null)
             {
                 node.pathIndex = i;
@@ -69,7 +69,7 @@ public class BoardManager : MonoBehaviour
         grid.GetGridObject(min, min).initialTileType = TileType.Go;         // Bottom-left (1, 1)
         grid.GetGridObject(max, min).initialTileType = TileType.Chance;    // Bottom-right (12, 1)
         grid.GetGridObject(max, max).initialTileType = TileType.Go;         // Top-right (12, 12)
-        grid.GetGridObject(min, max).initialTileType = TileType.Chance;    // Top-left (1, 12) - THIS IS THE FIX.
+        grid.GetGridObject(min, max).initialTileType = TileType.Chance;    // Top-left (1, 12)
     }
 
     void DrawBoardVisuals()
@@ -82,7 +82,7 @@ public class BoardManager : MonoBehaviour
 
             TileNode node = grid.GetGridObject(pos.x, pos.y);
             Renderer tileRenderer = tileObject.GetComponent<Renderer>();
-            if (tileRenderer == null) continue; // Safety check
+            if (tileRenderer == null) continue;
 
             if (node.initialTileType == TileData.TileType.Chance)
             {
@@ -111,14 +111,10 @@ public class BoardManager : MonoBehaviour
             {
                 Vector2Int plotPos = CalculatePlotPosition(pathPos);
                 Vector3 plotWorldPos = grid.GetWorldPosition(plotPos.x, plotPos.y);
-
-                // Use the single, consolidated prefab.
                 GameObject plotObject = Instantiate(tilePrefab, plotWorldPos, Quaternion.identity, this.transform);
 
-                // Apply the "Available" green material.
                 plotObject.GetComponent<Renderer>().material = availablePlotMaterial;
 
-                // Store a reference to it, using the path tile's position as the key.
                 plotVisuals[pathPos] = plotObject;
             }
         }
@@ -146,7 +142,6 @@ public class BoardManager : MonoBehaviour
     {
         Vector2Int pathPos = new Vector2Int(nodeOnPath.x, nodeOnPath.y);
 
-        // This method now ONLY handles the small building object itself.
         if (buildingVisuals.ContainsKey(pathPos))
         {
             // Logic for upgrading an existing building's material.
@@ -158,8 +153,7 @@ public class BoardManager : MonoBehaviour
             Vector2Int plotPos = CalculatePlotPosition(pathPos);
             Vector3 buildingWorldPos = grid.GetWorldPosition(plotPos.x, plotPos.y);
 
-            // We still need a height offset so it sits ON TOP of the plot visual.
-            buildingWorldPos.y += 0.8f; // Adjust as needed
+            buildingWorldPos.y += 0.8f;
 
             GameObject buildingObj = Instantiate(buildingPrefab, buildingWorldPos, Quaternion.identity, this.transform);
             buildingObj.GetComponent<Renderer>().material = buildingMat;

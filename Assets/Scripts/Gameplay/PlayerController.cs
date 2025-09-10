@@ -2,23 +2,35 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
-    public int playerId; // Is this Player 1 or Player 2?
-    public int currentPathIndex; // Which tile on the path are we on? (e.g., tile 0, 1, 2...)
-    public int money; // How much money the player has
+    // --- Core Data ---
+    public int playerId;
+    public string playerName; 
+    public int currentPathIndex;
+    public int money;
+    public CharacterData characterData;
 
+    // --- Status Effect Flags (from Chance Cards) ---
     public bool hasGuaranteedWin = false;
     public bool hasFreeBuildOnRandomWin = false;
     public bool hasTaxImmunity = false;
 
-    public void Initialize(int id)
+    public CharacterState passiveState;
+
+    // --- Initialization ---
+    public void Initialize(int id, CharacterData charData)
     {
         this.playerId = id;
-        this.money = 1500; // Starting money, can be changed later
+        this.characterData = charData;
+        this.playerName = (id == 0) ? "Player 1" : "Bot"; // Default name
+        if (charData != null)
+        {
+            this.playerName = charData.characterName;
+        }
 
-        // Based on player ID, set their starting position
-        // Player 1 (ID 0) starts at tile 0.
-        // Player 2 (ID 1) starts at the halfway point.
-        // We'll calculate the exact index in the GameManager.
+        // The Major gets more starting money
+        this.money = (charData?.passiveAbility == CharacterPassive.TheMajor) ? 3000 : 1500;
+
         this.currentPathIndex = 0;
+        this.passiveState = new CharacterState();
     }
 }

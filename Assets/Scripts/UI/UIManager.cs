@@ -33,6 +33,9 @@ public class UIManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI chanceCardDescriptionText;
     [SerializeField] private GameObject continueTextObject;
 
+    [Header("Athlete Panel")]
+    [SerializeField] private GameObject athleteChoicePanel;
+
     // --- Unity Methods ---
     private void Awake()
     {
@@ -152,5 +155,28 @@ public class UIManager : MonoBehaviour
         // We need to add this method to GameManager.cs
         GameManager.Instance.PlayerChoseToPass();
         HideBuildPanel();
+    }
+
+    public void ShowAthleteChoicePanel()
+    {
+        if (athleteChoicePanel != null) athleteChoicePanel.SetActive(true);
+    }
+
+    public void HideAthleteChoicePanel()
+    {
+        if (athleteChoicePanel != null) athleteChoicePanel.SetActive(false);
+    }
+
+    // These will be called BY the buttons in the Inspector
+    public void OnAthleteChooseYes()
+    {
+        GameManager.Instance.PlayerChoseAthleteBonus(true);
+        HideAthleteChoicePanel();
+    }
+
+    public void OnAthleteChooseNo()
+    {
+        GameManager.Instance.PlayerChoseAthleteBonus(false);
+        HideAthleteChoicePanel();
     }
 }

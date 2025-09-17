@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using static TileData;
 
@@ -172,6 +173,56 @@ public class BoardManager : MonoBehaviour
         return plotPos;
     }
 
+
+    // Finds and returns a list of all TileNodes
+    // on the path that are buildable.
+    public List<TileNode> GetAllBuildableTiles()
+    {
+        List<TileNode> buildableTiles = new List<TileNode>();
+        foreach (Vector2Int pos in pathCoordinates)
+        {
+            TileNode node = grid.GetGridObject(pos.x, pos.y);
+            if (node != null && node.initialTileType == TileData.TileType.Buildable)
+            {
+                buildableTiles.Add(node);
+            }
+        }
+        return buildableTiles;
+    }
+
+    // Wipes all buildings from the board and resets the visuals to their default state.
+    public void ResetAllTilesToDefault()
+    {
+        foreach (Vector2Int pathPos in pathCoordinates)
+        {
+            TileNode node = grid.GetGridObject(pathPos.x, pathPos.y);
+            if (node != null && node.owner != null)
+            {
+                // Reset the node's data
+                node.owner = null;
+                node.currentBuilding = null;
+                node.buildingLevel = 0;
+
+
+                if (tileVisuals.ContainsKey(pathPos))
+                {
+                    tileVisuals[pathPos].GetComponent<Renderer>().material = null;
+                }
+
+                if (plotVisuals.ContainsKey(pathPos))
+                {
+                    plotVisuals[pathPos].GetComponent<Renderer>().material = availablePlotMaterial;
+                }
+
+                if (buildingVisuals.ContainsKey(pathPos))
+                {
+                    Destroy(buildingVisuals[pathPos]);
+                    buildingVisuals.Remove(pathPos);
+                }
+            }
+        }
+    }
+
     public int GetBuildingCountForPlayer(PlayerController player)
     {
         int count = 0;
@@ -203,6 +254,42 @@ public class BoardManager : MonoBehaviour
 
     // --- Public Helper Methods for other scripts ---
 
+    public List<TileNode> GetAllPropertyNodesForPlayer(PlayerController player)
+    {
+        List<TileNode> propertyNodes = new List<TileNode>();
+        foreach (Vector2Int pos in pathCoordinates)
+        {
+            TileNode node = grid.GetGridObject(pos.x, pos.y);
+            if (node != null && node.owner == player)
+            {
+                propertyNodes.Add(node);
+            }
+        }
+        return propertyNodes;
+    }
+
+    public TileNode GetRandomEmptyBuildableTile()
+    {
+        // First, find all empty buildable tiles.
+        List<TileNode> emptyTiles = new List<TileNode>();
+        foreach (Vector2Int pos in pathCoordinates)
+        {
+            TileNode node = grid.GetGridObject(pos.x, pos.y);
+            if (node != null && node.initialTileType == TileData.TileType.Buildable && node.owner == null)
+            {
+                emptyTiles.Add(node);
+            }
+        }
+
+        // If found any, pick one at random.
+        if (emptyTiles.Any())
+        {
+            return emptyTiles[Random.Range(0, emptyTiles.Count)];
+        }
+
+        return null;
+    }
+
     public TileNode GetNodeAtPosition(Vector2Int gridPosition)
     {
         return grid.GetGridObject(gridPosition.x, gridPosition.y);
@@ -233,5 +320,29 @@ public class BoardManager : MonoBehaviour
     public int GetPathLength()
     {
         return pathCoordinates.Count;
+    }
+
+    public void ResetTileToDefault(TileNode node)
+    {
+        Vector2Int pathPos = new Vector2Int(node.x, node.y);
+
+        // Reset path tile material to default
+        if (tileVisuals.ContainsKey(pathPos))
+        {
+            // For now, let's just make it grey. A better way is to store the original material.
+            tileVisuals[pathPos].GetComponent<Renderer>().material.color = Color.grey;
+        }
+
+        // Reset plot tile material to available green
+        if (plotVisuals.ContainsKey(pathPos))
+        {
+            plotVisuals[pathPos].GetComponent<Renderer>().material = availablePlotMaterial;
+        }
+
+        if (buildingVisuals.ContainsKey(pathPos))
+        {
+            Destroy(buildingVisuals[pathPos]);
+            buildingVisuals.Remove(pathPos);
+        }
     }
 }

@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ae8f5cc64aeb2b4bbfe506ab008cdb3, type: 3}
+  m_Name: BlessingOfThree
+  m_EditorClassIdentifier: Assembly-CSharp::ChanceCardData
+  cardTitle: Blessing of Three
+  cardDescription: While the blessing is active, gain a random level 3 building every
+    time you roll a double 3.
+  category: 0
+  effectLogic: {fileID: 11400000, guid: 839cb09a150787d4eb4454f4253ba830, type: 2}

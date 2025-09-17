@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ae8f5cc64aeb2b4bbfe506ab008cdb3, type: 3}
+  m_Name: RolllingSpecialQuest
+  m_EditorClassIdentifier: Assembly-CSharp::ChanceCardData
+  cardTitle: 'Quest : Rolling Specials'
+  cardDescription: 'A quest starts for both players. Who has 3 special rolls first
+    will have increased special roll chance for the rest of the game.
+
+
+    When
+    a new quest starts, any on-going quests will be counted as finished.'
+  category: 2
+  effectLogic: {fileID: 11400000, guid: 5bad3e7509279ee48a62eedb6c49fa3c, type: 2}

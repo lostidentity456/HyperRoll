@@ -15,7 +15,10 @@ MonoBehaviour:
   buildingName: House
   buildingCost: 100
   baseIncomeRate: 0.05
+  upgradeCosts: 6400000096000000c2010000
   taxRatesPerLevel:
   - 0.2
   - 0.4
   - 0.6
+  - 1
+  - 1

@@ -14,4 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TreasureThreshold
   valueRequired: 30
   moneyPerValue: 100
-  rewardPool: []
+  rewardPool:
+  - {fileID: 11400000, guid: 4314d5823aeb60145a6a3aafeba9bac0, type: 2}
+  - {fileID: 11400000, guid: 4d927d3576fd9234f8cb1511a6a147c0, type: 2}
+  - {fileID: 11400000, guid: b1c6bd43ac3576440a803be8e7fdfc9f, type: 2}
+  - {fileID: 11400000, guid: 354bb21b84eec954ba56c3ec81c49ed4, type: 2}

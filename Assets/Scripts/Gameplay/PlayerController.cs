@@ -9,11 +9,6 @@ public class PlayerController : MonoBehaviour
     public int money;
     public CharacterData characterData;
 
-    // --- Status Effect Flags (from Chance Cards) ---
-    public bool hasGuaranteedWin = false;
-    public bool hasFreeBuildOnRandomWin = false;
-    public bool hasTaxImmunity = false;
-
     public CharacterState passiveState;
 
     // --- Initialization ---
@@ -21,14 +16,14 @@ public class PlayerController : MonoBehaviour
     {
         this.playerId = id;
         this.characterData = charData;
-        this.playerName = (id == 0) ? "Player 1" : "Bot"; // Default name
+        this.playerName = (id == 0) ? "Player" : "Bot"; // Default name
         if (charData != null)
         {
             this.playerName = charData.characterName;
         }
 
         // The Major gets more starting money
-        this.money = (charData?.passiveAbility == CharacterPassive.TheMajor) ? 3000 : 1500;
+        this.money = (charData?.passiveAbility == CharacterPassive.TheMajor) ? 25000 : 10000;
 
         this.currentPathIndex = 0;
         this.passiveState = new CharacterState();

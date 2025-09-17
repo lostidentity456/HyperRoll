@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ae8f5cc64aeb2b4bbfe506ab008cdb3, type: 3}
+  m_Name: Drought
+  m_EditorClassIdentifier: Assembly-CSharp::ChanceCardData
+  cardTitle: Drought
+  cardDescription: Until the next time you collect tax from your opponent, you cannot
+    gain passive income.
+  category: 1
+  effectLogic: {fileID: 11400000, guid: 54c6c1e4ce2f9e24b8ee6aec7220419a, type: 2}

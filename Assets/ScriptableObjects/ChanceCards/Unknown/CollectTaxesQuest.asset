@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ae8f5cc64aeb2b4bbfe506ab008cdb3, type: 3}
+  m_Name: CollectTaxesQuest
+  m_EditorClassIdentifier: Assembly-CSharp::ChanceCardData
+  cardTitle: 'Quest : Collect Taxes'
+  cardDescription: 'A quest starts for both players. Who collect taxes 2 times first
+    gains 10 times of their passive income.
+
+
+    When a new quest starts, any on-going
+    quests will be counted as finished.'
+  category: 2
+  effectLogic: {fileID: 11400000, guid: cfa68222fe1f1a2488fc24e4bfa4e43e, type: 2}

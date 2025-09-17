@@ -5,21 +5,10 @@ public class ChanceCardData : ScriptableObject
 {
     [Header("Card Info")]
     public string cardTitle;
-    [TextArea(3, 5)] // This makes the description box in the Inspector bigger
+    [TextArea(3, 5)]
     public string cardDescription;
+    public CardCategory category;
 
     [Header("Card Logic")]
-    public ChanceCardEffect effect;
-
-    // Parameters for the effects
-
-    [Tooltip("Used for GainMoneyFlat and as the base amount for GainMoneyPerBuilding.")]
-    public int moneyAmount;
-
-    [Tooltip("Used for GainMoneyPerBuilding")]
-    public int moneyPerBuilding;
-
-    [Tooltip("Used for BuildRandomFreeBuilding")]
-    public BuildingData buildingToGrant; 
-
+    public EffectLogic effectLogic;
 }

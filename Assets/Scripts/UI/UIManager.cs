@@ -28,6 +28,20 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Button buildShopButton;
     [SerializeField] private Button passTurnButton;
 
+    [Header("Bonus Steps Panel Buttons")]
+    [SerializeField] private GameObject bonusStepsPanel;
+    [SerializeField] private TextMeshProUGUI bonusStepsQuestionText;
+    [SerializeField] private Button use1StepButton;
+    [SerializeField] private Button use2StepsButton;
+    [SerializeField] private Button use3StepsButton;
+    [SerializeField] private Button use4StepsButton;
+
+    [Header("Upgrade Panel")]
+    [SerializeField] private GameObject upgradePanel;
+    [SerializeField] private TextMeshProUGUI upgradeQuestionText;
+    [SerializeField] private Button confirmUpgradeButton;
+    [SerializeField] private TextMeshProUGUI confirmUpgradeButtonText;
+
     [Header("Chance Card Panel")]
     [SerializeField] private TextMeshProUGUI chanceCardTitleText;
     [SerializeField] private TextMeshProUGUI chanceCardDescriptionText;
@@ -127,7 +141,6 @@ public class UIManager : MonoBehaviour
 
         if (continueTextObject != null) continueTextObject.SetActive(true);
 
-        // This requires the Input System Package
         yield return new WaitUntil(() => UnityEngine.InputSystem.Mouse.current.leftButton.wasPressedThisFrame);
 
         chanceCardPanel.SetActive(false);
@@ -135,8 +148,71 @@ public class UIManager : MonoBehaviour
         GameManager.Instance.ResumeAfterChanceCard();
     }
 
+    public void ShowBonusStepsPanel(int currentStepPool)
+    {
+        if (bonusStepsPanel == null) return;
 
-    // Methods called by UI buttons 
+        bonusStepsQuestionText.text = $"You have {currentStepPool} bonus steps! Want to spend them this turn? (max 4)";
+        
+        if (use1StepButton != null)
+            use1StepButton.interactable = (currentStepPool >= 1);
+
+        if (use2StepsButton != null)
+            use2StepsButton.interactable = (currentStepPool >= 2);
+
+        if (use3StepsButton != null)
+            use3StepsButton.interactable = (currentStepPool >= 3);
+
+        if (use4StepsButton != null)
+            use4StepsButton.interactable = (currentStepPool >= 4);
+
+        bonusStepsPanel.SetActive(true);
+    }
+
+    public void HideBonusStepsPanel()
+    {
+        if (bonusStepsPanel != null)
+        {
+            bonusStepsPanel.SetActive(false);
+        }
+    }
+
+    public void OnUseBonusStepsClicked(int amount)
+    {
+        // This single, flexible method will be called by all "Use X Steps" buttons.
+        GameManager.Instance.PlayerConfirmedBonusSteps(amount);
+        HideBonusStepsPanel();
+    }
+    public void OnSkipBonusStepsClicked()
+    {
+        // Same as confirming with 0 steps
+        GameManager.Instance.PlayerConfirmedBonusSteps(0);
+        HideBonusStepsPanel();
+    }
+
+    public void ShowUpgradePanel(TileNode nodeToUpgrade, int upgradeCost)
+    {
+        upgradeQuestionText.text = $"Upgrade {nodeToUpgrade.currentBuilding.buildingName} (Lvl {nodeToUpgrade.buildingLevel}) to Level {nodeToUpgrade.buildingLevel + 1}?";
+        confirmUpgradeButtonText.text = $"Upgrade for ${upgradeCost}";
+        upgradePanel.SetActive(true);
+    }
+
+    public void HideUpgradePanel()
+    {
+        if (upgradePanel != null) upgradePanel.SetActive(false);
+    }
+
+    public void OnConfirmUpgradeClicked()
+    {
+        GameManager.Instance.PlayerChoseToUpgrade(true);
+        HideUpgradePanel();
+    }
+
+    public void OnCancelUpgradeClicked()
+    {
+        GameManager.Instance.PlayerChoseToUpgrade(false);
+        HideUpgradePanel();
+    }
 
     public void OnBuildHouseClicked()
     {
@@ -152,7 +228,6 @@ public class UIManager : MonoBehaviour
 
     public void OnPassTurnClicked()
     {
-        // We need to add this method to GameManager.cs
         GameManager.Instance.PlayerChoseToPass();
         HideBuildPanel();
     }
@@ -166,8 +241,6 @@ public class UIManager : MonoBehaviour
     {
         if (athleteChoicePanel != null) athleteChoicePanel.SetActive(false);
     }
-
-    // These will be called BY the buttons in the Inspector
     public void OnAthleteChooseYes()
     {
         GameManager.Instance.PlayerChoseAthleteBonus(true);

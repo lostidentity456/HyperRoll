@@ -12,8 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 360c7beecd5751a4d81614674c3ffdad, type: 3}
   m_Name: Shop_Building
   m_EditorClassIdentifier: Assembly-CSharp::BuildingData
-  buildingName: House
-  buildingCost: 200
+  buildingName: Shop
+  buildingCost: 400
   baseIncomeRate: 0.05
+  upgradeCosts: 900100005802000008070000
   taxRatesPerLevel:
-  - 0
+  - 0.1
+  - 0.3
+  - 0.6
+  - 1.5
+  - 1.5

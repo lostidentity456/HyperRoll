@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ae8f5cc64aeb2b4bbfe506ab008cdb3, type: 3}
+  m_Name: Equilibrium
+  m_EditorClassIdentifier: Assembly-CSharp::ChanceCardData
+  cardTitle: Equilibrium
+  cardDescription: Money from both players are summed up and then redistributed equally.
+  category: 2
+  effectLogic: {fileID: 11400000, guid: 44c960c5c37971e4795724a10dbaffae, type: 2}

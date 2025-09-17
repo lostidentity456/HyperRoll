@@ -13,6 +13,10 @@ public class BuildingData : ScriptableObject
     [Tooltip("The base income rate at Level 1 (e.g., 0.05 for 5%)")]
     public float baseIncomeRate;
 
+    [Header("Upgrade Progression")]
+    [Tooltip("Cost to upgrade TO this level. Element 0 is cost to upgrade TO Lvl 2, Element 1 to Lvl 3, etc.")]
+    public List<int> upgradeCosts;
+
     [Header("Tax Progression")]
     [Tooltip("The list of tax rates for each level. Element 0 is for Level 1, Element 1 for Level 2, etc.")]
     public List<float> taxRatesPerLevel;

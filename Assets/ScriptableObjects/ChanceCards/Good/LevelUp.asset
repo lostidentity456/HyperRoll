@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ae8f5cc64aeb2b4bbfe506ab008cdb3, type: 3}
+  m_Name: LevelUp
+  m_EditorClassIdentifier: Assembly-CSharp::ChanceCardData
+  cardTitle: Level Up!
+  cardDescription: Level up a random building. If there's none, build a random Level
+    1 House.
+  category: 0
+  effectLogic: {fileID: 11400000, guid: 61fb607c0bfb87148a346e5d488b7f33, type: 2}
